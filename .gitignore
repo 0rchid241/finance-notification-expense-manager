@@ -1,0 +1,35 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Java / Spring
+out/
+target/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+
+# Logs
+*.log
+
+# Database / local runtime
+*.db
+*.sqlite
+*.sqlite3
