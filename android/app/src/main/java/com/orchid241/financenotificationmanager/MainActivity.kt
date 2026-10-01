@@ -4,44 +4,44 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import com.orchid241.financenotificationmanager.data.FinancialTransactionRepository
+import com.orchid241.financenotificationmanager.data.local.AppDatabase
+import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
+import com.orchid241.financenotificationmanager.ui.TransactionListScreen
 import com.orchid241.financenotificationmanager.ui.theme.FinanceNotificationManagerTheme
+import kotlinx.coroutines.CancellationException
 
 class MainActivity : ComponentActivity() {
+    private val repository by lazy { FinancialTransactionRepository(AppDatabase.getInstance(applicationContext)) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            FinanceNotificationManagerTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+            val state by produceState(TransactionListState()) {
+                lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    try {
+                        repository.observeAll().collect { value = TransactionListState(transactions = it, loading = false) }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        value = TransactionListState(loading = false, failed = true)
+                    }
                 }
+            }
+            FinanceNotificationManagerTheme {
+                TransactionListScreen(state.transactions, loading = state.loading, failed = state.failed)
             }
         }
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    FinanceNotificationManagerTheme {
-        Greeting("Android")
-    }
-}
+private data class TransactionListState(
+    val transactions: List<FinancialTransactionEntity> = emptyList(),
+    val loading: Boolean = true,
+    val failed: Boolean = false,
+)

@@ -4,8 +4,10 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import com.orchid241.financenotificationmanager.data.RawNotificationRepository
+import com.orchid241.financenotificationmanager.data.FinancialTransactionRepository
 import com.orchid241.financenotificationmanager.data.local.AppDatabase
+import com.orchid241.financenotificationmanager.parser.ParseResult
+import com.orchid241.financenotificationmanager.parser.SupportedFinancialApps
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,10 +18,11 @@ import kotlinx.coroutines.launch
 class FinanceNotificationListenerService : NotificationListenerService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val repository by lazy {
-        RawNotificationRepository(AppDatabase.getInstance(applicationContext).rawNotificationDao())
+        FinancialTransactionRepository(AppDatabase.getInstance(applicationContext))
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        if (!SupportedFinancialApps.supports(sbn.packageName)) return
         val receivedAt = System.currentTimeMillis()
         val notificationKey = sbn.key
         val packageName = sbn.packageName
@@ -28,14 +31,9 @@ class FinanceNotificationListenerService : NotificationListenerService() {
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
 
-        Log.d(
-            TAG,
-            "package=$packageName, title=$title, text=$text, postedAt=$postedAt",
-        )
-
         serviceScope.launch {
             try {
-                repository.saveRawNotification(
+                val result = repository.collectNotification(
                     notificationKey = notificationKey,
                     packageName = packageName,
                     title = title,
@@ -43,11 +41,13 @@ class FinanceNotificationListenerService : NotificationListenerService() {
                     postedAt = postedAt,
                     receivedAt = receivedAt,
                 )
+                Log.d(TAG, "package=$packageName, saved=true, parsed=${result is ParseResult.Success}")
             } catch (cancelled: CancellationException) {
                 throw cancelled
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 // A failed insert must not cancel collection of subsequent events.
-                Log.e(TAG, "Failed to save raw notification", error)
+                // Exception messages can contain SQL values; never log financial content.
+                Log.e(TAG, "package=$packageName, processingSaved=false")
             }
         }
     }
