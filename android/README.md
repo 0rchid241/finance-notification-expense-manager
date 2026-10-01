@@ -67,50 +67,45 @@ cd android
 - 기존 Raw DAO: 필드/상태/null 보존, 중복 콜백 별도 저장, 범용 Raw Repository 계약.
 - 거래 DAO/Repository: 필드와 최신 정렬, 원본 연결과 완료 상태, 실패 Raw 보존, 패키지 필터, 중복 별도 저장, 거래 삽입 및 상태 변경 실패의 롤백.
 - Migration: 보관된 1.json으로 DB 생성 → 다른 앱/null Raw 저장 → 실제 Room Migration과 스키마 검증 → 새 거래 저장 → 닫고 다시 열어 영속성 확인.
-- 기기 UI: 빈 안내, 출금 카드/쉼표/마스킹, 새 입금의 화면 반영. 실제 은행 알림 테스트와는 별도다.
+- 기기 UI: 빈 안내, 출금 카드/쉼표/마스킹, 새 입금의 화면 반영.
 
-2026-10-01 로컬 검증 결과:
+## 2026-10-01 검증 결과
 
-- 위 빌드/단위 테스트/테스트 APK/lint 명령과 연결 기기 테스트를 함께 실행해 성공했다.
-- 단위 테스트 25개 성공: Parser 11, 거래 DAO/Repository 7, Migration 1, 기존 Raw DAO 5, 기본 단위 테스트 1.
-- 연결 기기 SM-N976N / Android 12에서 테스트 4개 성공: Compose 3, 기존 앱 패키지 확인 1.
-- 실패/오류/건너뛰기 0개. 실제 카카오뱅크 입출금 알림 E2E는 실행하지 않았다.
-- lint 오류 0개, 경고 19개. 기존 Manifest 중복 라벨, 의존성 업데이트 안내, 기존 미사용 색상 리소스에 해당한다.
-- `git diff --check` 통과. commit/push/PR 및 backend 수정은 수행하지 않았다.
+- 단위 테스트 **25개 성공**
+  - Parser 11
+  - 거래 DAO/Repository 7
+  - Migration 1
+  - 기존 Raw DAO 5
+  - 기본 단위 테스트 1
+- 연결 기기 테스트 **4개 성공**
+  - Compose 3
+  - 기존 앱 패키지 확인 1
+- lint **오류 0개, 경고 19개**
+- `git diff --check` 통과
+- 실제 카카오뱅크 입금/출금 알림 E2E 검증 완료
+  - 앱 화면을 열어두지 않은 상태에서 알림 수집
+  - 구조화된 입금/출금 거래 2건이 `financial_transactions`에 저장되는 것 확인
+  - 앱 최근 거래 카드에 입금/출금 2건 표시 확인
+  - 상대방 이름과 계좌 끝 4자리만 구조화 데이터에 저장되는 것 확인
 
-## 추가 및 수정 파일
+## 실제 카카오뱅크 알림 검증 절차
 
-| 구분 | 파일 (android 기준, 문서는 저장소 기준) |
-| --- | --- |
-| 수정 | `README.md`, `android/README.md`, `docs/architecture.md` |
-| 수정 | `.gitignore`, `app/build.gradle.kts` |
-| 수정 | `app/src/main/java/com/orchid241/financenotificationmanager/FinanceNotificationListenerService.kt`, `MainActivity.kt` |
-| 수정 | 같은 패키지의 `data/local/AppDatabase.kt`, `data/local/RawNotificationDao.kt` |
-| 추가 | 같은 패키지의 `parser/SupportedFinancialApps.kt`, `parser/KakaoBankNotificationParser.kt` |
-| 추가 | 같은 패키지의 `data/FinancialTransactionRepository.kt`, `data/local/FinancialTransactionEntity.kt`, `data/local/FinancialTransactionDao.kt` |
-| 추가 | 같은 패키지의 `ui/TransactionListScreen.kt` |
-| 추가 | `app/schemas/com.orchid241.financenotificationmanager.data.local.AppDatabase/2.json` |
-| 추가 | `app/src/test/java/com/orchid241/financenotificationmanager/parser/KakaoBankNotificationParserTest.kt` |
-| 추가 | 같은 test 패키지의 `data/local/FinancialTransactionTest.kt`, `data/local/AppDatabaseMigrationTest.kt` |
-| 추가 | `app/src/androidTest/java/com/orchid241/financenotificationmanager/TransactionListScreenTest.kt` |
-
-## 실제 카카오뱅크 알림 검증
-
-1. 기존 앱을 삭제하거나 데이터를 초기화하지 않고 새 APK로 업데이트한다. 알림 접근 권한을 허용한다.
-2. 앱 화면을 닫고 실제 카카오뱅크 출금 및 입금 알림을 각각 발생시킨다.
-3. 앱을 열어 최근 거래 카드의 출금/입금, 금액, 상대방, 계좌 끝자리, 잔액, 시각을 확인한다.
-4. 앱을 열어둔 상태에서도 새 알림이 카드로 자동 반영되는지 확인한다.
-5. Database Inspector에서 새 Raw의 원문 보존, 거래의 Raw ID 참조, `PROCESSED`를 확인한다.
-6. 다른 앱 알림은 새 Raw가 추가되지 않고 기존 다른 앱의 Raw가 그대로 유지되는지 확인한다.
+1. 기존 앱을 삭제하거나 데이터를 초기화하지 않고 새 APK로 업데이트한다.
+2. 알림 접근 권한을 허용한다.
+3. 앱 화면을 닫고 실제 카카오뱅크 출금 및 입금 알림을 발생시킨다.
+4. 앱을 열어 최근 거래 카드의 출금/입금, 금액, 상대방, 계좌 끝자리, 잔액, 시각을 확인한다.
+5. Database Inspector에서 새 Raw의 원문 보존, 거래의 Raw ID 참조, `PROCESSED` 상태를 확인한다.
+6. 다른 앱 알림은 새 Raw가 추가되지 않는지 확인한다.
 7. 예상 밖 카카오뱅크 알림은 Raw가 `PARSE_FAILED`로 남고 거래가 생성되지 않는지 확인한다.
-8. 같은 알림 갱신은 별도 행으로 남는지, 앱 재실행 후 원본과 거래가 유지되는지 확인한다.
+8. 앱 재실행 후 원본과 거래가 유지되는지 확인한다.
 9. Logcat에 제목/본문/상대방/계좌/예외 상세가 출력되지 않는지 확인한다.
 
 ## 한계와 다음 단계
 
-- 현재 형식의 카카오뱅크 입출금만 지원한다. 알림이 마스킹되거나 형식이 바뀌면 파싱에 실패한다.
-- 기존 Raw의 소급 처리와 `PENDING` 자동 재처리는 없다. 후속 실패 Raw는 보존되지만 목록에 나타나지 않는다.
+- 현재 확인된 카카오뱅크 입금/출금 형식만 지원한다. 알림 형식이 바뀌면 파싱에 실패할 수 있다.
+- 기존 Raw의 소급 처리와 `PENDING` 자동 재처리는 없다.
+- 파싱 실패 Raw는 보존되지만 사용자가 앱에서 확인하는 화면은 아직 없다.
 - 프로세스 또는 서비스 종료 이전에 커밋되지 않은 알림의 저장은 보장하지 않는다. 영속 큐/재시도는 이후 검토한다.
-- 알림 접근 권한은 시스템 설정에서 수동으로 부여한다. 권한 설정 진입 UX와 실패 Raw 확인 화면은 다음 단계다.
-- 다음은 실알림 전체 흐름 확인, 추가 형식 지원, 실패 확인 및 재처리 정책을 진행한다.
-- 중복/내부이체/취소/환불/카테고리/Rule Engine/통계/계정/동기화/서버 연결은 구현하지 않았다. backend는 수정하지 않는다.
+- 알림 접근 권한은 시스템 설정에서 수동으로 부여한다.
+- 다음은 추가 금융 알림 형식 지원, 실패 데이터 확인/재처리 정책, 권한 UX를 진행한다.
+- 중복/내부이체/취소/환불/카테고리/Rule Engine/통계/계정/동기화/서버 연결은 아직 구현하지 않았다.
