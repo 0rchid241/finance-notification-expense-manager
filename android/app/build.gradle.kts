@@ -34,6 +34,7 @@ android {
     buildFeatures {
         compose = true
     }
+    sourceSets.getByName("test").resources.directories.add("schemas")
 }
 
 // Keep versioned schemas for future Room migrations.
