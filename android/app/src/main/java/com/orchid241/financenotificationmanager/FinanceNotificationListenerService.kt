@@ -22,6 +22,10 @@ class FinanceNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        // 샘플 수집 단계에서 실제 설치 앱의 packageName을 확인하기 위한 임시 로그.
+        // 알림 제목/본문 등 금융 내용은 로그에 남기지 않는다.
+        Log.d(DISCOVERY_TAG, "package=${sbn.packageName}")
+
         if (!SupportedFinancialApps.supports(sbn.packageName)) return
         val receivedAt = System.currentTimeMillis()
         val notificationKey = sbn.key
@@ -59,5 +63,6 @@ class FinanceNotificationListenerService : NotificationListenerService() {
 
     private companion object {
         const val TAG = "FinanceNotification"
+        const val DISCOVERY_TAG = "FinanceAppDiscovery"
     }
 }
