@@ -1,6 +1,7 @@
 package com.orchid241.financenotificationmanager.data.local
 
 import androidx.room.Room
+import com.orchid241.financenotificationmanager.consistency.ConsistencyRelationType
 import com.orchid241.financenotificationmanager.data.FinancialTransactionRepository
 import com.orchid241.financenotificationmanager.data.RawProcessingStatus
 import com.orchid241.financenotificationmanager.parser.ParseResult
@@ -78,6 +79,34 @@ class FinancialTransactionTest {
         assertEquals(2, transactions.size)
         assertEquals(raw.map { it.id }.toSet(), transactions.map { it.rawNotificationId }.toSet())
     }
+    @Test fun duplicateCandidateIsPersistedAfterSecondTransaction() = runBlocking {
+        collect(time = 1000)
+        collect(time = 2000)
+
+        val candidate = database.consistencyCandidateDao().getAll().single()
+        assertEquals(ConsistencyRelationType.DUPLICATE_CANDIDATE, candidate.relationType)
+        assertTrue(candidate.firstTransactionId > 0)
+        assertTrue(candidate.secondTransactionId > 0)
+        assertTrue(candidate.reasonText.contains("같은 금액"))
+    }
+    @Test fun internalTransferCandidateIsPersistedForOppositeDirections() = runBlocking {
+        collect(time = 1000)
+        collect(
+            title = "입금 500,000원",
+            text = "가상인물 → 입출금통장(5678)\n잔액 853,000원",
+            time = 2000,
+        )
+
+        val candidate = database.consistencyCandidateDao().getAll().single()
+        assertEquals(ConsistencyRelationType.INTERNAL_TRANSFER_CANDIDATE, candidate.relationType)
+        assertTrue(candidate.reasonText.contains("출금/입금 한 쌍"))
+    }
+    @Test fun unrelatedTransactionDoesNotPersistConsistencyCandidate() = runBlocking {
+        collect(time = 1000)
+        collect(title = "출금 300,000원", time = 2000)
+
+        assertTrue(database.consistencyCandidateDao().getAll().isEmpty())
+    }
     @Test fun transactionWriteFailureRetainsPendingRawAndNextEventCanSucceed() = runBlocking {
         database.openHelper.writableDatabase.execSQL("CREATE TRIGGER reject_transaction BEFORE INSERT ON financial_transactions BEGIN SELECT RAISE(ABORT, 'test failure'); END")
         try {
@@ -103,5 +132,6 @@ class FinancialTransactionTest {
         }
         assertEquals("PENDING", database.rawNotificationDao().getAll().single().processingStatus)
         assertTrue(repository.observeAll().first().isEmpty())
+        assertTrue(database.consistencyCandidateDao().getAll().isEmpty())
     }
 }
