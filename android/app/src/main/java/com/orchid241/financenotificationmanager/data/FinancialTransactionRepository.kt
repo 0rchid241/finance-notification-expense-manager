@@ -3,9 +3,8 @@ package com.orchid241.financenotificationmanager.data
 import androidx.room.withTransaction
 import com.orchid241.financenotificationmanager.data.local.AppDatabase
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
-import com.orchid241.financenotificationmanager.parser.KakaoBankNotificationParser
+import com.orchid241.financenotificationmanager.parser.FinancialNotificationParserRegistry
 import com.orchid241.financenotificationmanager.parser.ParseResult
-import com.orchid241.financenotificationmanager.parser.SupportedFinancialApps
 
 object RawProcessingStatus {
     const val PROCESSED = "PROCESSED"
@@ -15,10 +14,14 @@ object RawProcessingStatus {
 /** Persists raw first, then atomically saves the parsed transaction and status. */
 class FinancialTransactionRepository(
     private val database: AppDatabase,
-    private val parser: KakaoBankNotificationParser = KakaoBankNotificationParser(),
+    private val parserRegistry: FinancialNotificationParserRegistry = FinancialNotificationParserRegistry(),
 ) {
     private val rawRepository = RawNotificationRepository(database.rawNotificationDao())
+
     fun observeAll() = database.financialTransactionDao().observeAll()
+
+    fun supportsPackage(packageName: String): Boolean =
+        parserRegistry.supportsPackage(packageName)
 
     suspend fun collectNotification(
         notificationKey: String,
@@ -28,10 +31,10 @@ class FinancialTransactionRepository(
         postedAt: Long,
         receivedAt: Long,
     ): ParseResult? {
-        if (!SupportedFinancialApps.supports(packageName)) return null
+        if (!supportsPackage(packageName)) return null
         val id = rawRepository.saveRawNotification(notificationKey, packageName, title, text, postedAt, receivedAt)
         val raw = checkNotNull(database.rawNotificationDao().getById(id))
-        val result = parser.parse(raw)
+        val result = parserRegistry.parse(raw)
         database.withTransaction {
             when (result) {
                 is ParseResult.Success -> {
