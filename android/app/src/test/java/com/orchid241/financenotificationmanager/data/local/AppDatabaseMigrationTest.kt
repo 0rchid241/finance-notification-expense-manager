@@ -35,7 +35,9 @@ class AppDatabaseMigrationTest {
             old.execSQL("INSERT INTO raw_notifications (id, notificationKey, packageName, title, text, postedAt, receivedAt, processingStatus) VALUES (7, 'old-key', 'com.example.other', NULL, NULL, 100, 101, 'PENDING')")
             old.version = 1
         }
-        val migrated = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(AppDatabase.MIGRATION_1_2).build()
+        val migrated = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+            .build()
         try {
             val raw = migrated.rawNotificationDao().getAll().single()
             assertEquals(7L, raw.id)
@@ -44,16 +46,20 @@ class AppDatabaseMigrationTest {
             assertNull(raw.text)
             assertEquals("PENDING", raw.processingStatus)
             assertTrue(migrated.financialTransactionDao().observeAll().first().isEmpty())
+            assertTrue(migrated.consistencyCandidateDao().observeAll().first().isEmpty())
             FinancialTransactionRepository(migrated).collectNotification("new", SupportedFinancialApps.KAKAO_BANK, "입금 1,000원", "가상인물 → 입출금통장(5678)\n잔액 1,000원", 200, 201)
             assertEquals(2, migrated.rawNotificationDao().getAll().size)
             assertEquals(1000L, migrated.financialTransactionDao().observeAll().first().single().amount)
         } finally {
             migrated.close()
         }
-        val reopened = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(AppDatabase.MIGRATION_1_2).build()
+        val reopened = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+            .build()
         try {
             assertEquals(2, reopened.rawNotificationDao().getAll().size)
             assertEquals(1, reopened.financialTransactionDao().observeAll().first().size)
+            assertTrue(reopened.consistencyCandidateDao().observeAll().first().isEmpty())
         } finally {
             reopened.close()
             context.deleteDatabase(name)
