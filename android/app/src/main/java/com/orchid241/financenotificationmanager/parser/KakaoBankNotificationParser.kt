@@ -23,9 +23,12 @@ sealed interface ParseResult {
 }
 
 /** Pure parsing: unknown or incomplete formats never become transactions. */
-class KakaoBankNotificationParser {
-    fun parse(raw: RawNotificationEntity): ParseResult {
-        if (raw.packageName != SupportedFinancialApps.KAKAO_BANK) return ParseResult.Failure
+class KakaoBankNotificationParser : FinancialNotificationParser {
+    override fun supports(packageName: String): Boolean =
+        packageName == SupportedFinancialApps.KAKAO_BANK
+
+    override fun parse(raw: RawNotificationEntity): ParseResult {
+        if (!supports(raw.packageName)) return ParseResult.Failure
         val title = titlePattern.matchEntire(raw.title?.trim() ?: return ParseResult.Failure)
             ?: return ParseResult.Failure
         val type = if (title.groupValues[1] == "출금") TransactionType.WITHDRAWAL else TransactionType.DEPOSIT
