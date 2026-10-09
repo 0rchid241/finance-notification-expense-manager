@@ -9,18 +9,27 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
+import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
+import com.orchid241.financenotificationmanager.data.local.UserRuleEntity
 import com.orchid241.financenotificationmanager.parser.TransactionType
+import com.orchid241.financenotificationmanager.rules.RuleConditionType
 import com.orchid241.financenotificationmanager.ui.theme.FinanceNotificationManagerTheme
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -31,8 +40,12 @@ import java.util.Locale
 fun TransactionListScreen(
     transactions: List<FinancialTransactionEntity>,
     consistency: Map<Long, TransactionConsistencyUiState> = emptyMap(),
+    rules: List<UserRuleEntity> = emptyList(),
+    ruleMatches: Map<Long, List<RuleMatchEntity>> = emptyMap(),
     loading: Boolean = false,
     failed: Boolean = false,
+    onAddAmountRule: (Long) -> Unit = {},
+    onAddCounterpartyRule: (String) -> Unit = {},
 ) {
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         LazyColumn(
@@ -47,6 +60,15 @@ fun TransactionListScreen(
                     Text("지원되는 금융 알림이 자동으로 기록됩니다.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+
+            item {
+                RuleSection(
+                    rules = rules,
+                    onAddAmountRule = onAddAmountRule,
+                    onAddCounterpartyRule = onAddCounterpartyRule,
+                )
+            }
+
             if (transactions.isEmpty()) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth()) {
@@ -62,16 +84,96 @@ fun TransactionListScreen(
                 }
             }
             items(transactions, key = { it.id }) { transaction ->
-                TransactionCard(transaction, consistency[transaction.id])
+                TransactionCard(
+                    transaction = transaction,
+                    consistency = consistency[transaction.id],
+                    ruleMatches = ruleMatches[transaction.id].orEmpty(),
+                )
             }
         }
     }
 }
 
 @Composable
+private fun RuleSection(
+    rules: List<UserRuleEntity>,
+    onAddAmountRule: (Long) -> Unit,
+    onAddCounterpartyRule: (String) -> Unit,
+) {
+    var amountText by rememberSaveable { mutableStateOf("") }
+    var keywordText by rememberSaveable { mutableStateOf("") }
+    val amount = amountText.filter(Char::isDigit).toLongOrNull()
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("사용자 규칙", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                if (rules.isEmpty()) "아직 만든 규칙이 없습니다."
+                else "활성 규칙 ${rules.count { it.enabled }}개",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            rules.take(3).forEach { rule ->
+                Text(
+                    text = "• ${ruleDescription(rule)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            OutlinedTextField(
+                value = amountText,
+                onValueChange = { amountText = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("지출 경고 금액") },
+                placeholder = { Text("예: 50000") },
+                singleLine = true,
+            )
+            Button(
+                onClick = {
+                    amount?.takeIf { it > 0 }?.let(onAddAmountRule)
+                    amountText = ""
+                },
+                enabled = amount != null && amount > 0,
+            ) {
+                Text("금액 규칙 추가")
+            }
+
+            OutlinedTextField(
+                value = keywordText,
+                onValueChange = { keywordText = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("상대방 이름 키워드") },
+                placeholder = { Text("예: 편의점") },
+                singleLine = true,
+            )
+            Button(
+                onClick = {
+                    val keyword = keywordText.trim()
+                    if (keyword.isNotEmpty()) onAddCounterpartyRule(keyword)
+                    keywordText = ""
+                },
+                enabled = keywordText.isNotBlank(),
+            ) {
+                Text("상대방 규칙 추가")
+            }
+        }
+    }
+}
+
+private fun ruleDescription(rule: UserRuleEntity): String = when (rule.conditionType) {
+    RuleConditionType.EXPENSE_AMOUNT_AT_LEAST ->
+        "${money(rule.amountThreshold ?: 0)} 이상 지출 시 경고"
+    RuleConditionType.COUNTERPARTY_CONTAINS ->
+        "상대방 이름에 '${rule.keyword.orEmpty()}' 포함 시 경고"
+}
+
+@Composable
 private fun TransactionCard(
     transaction: FinancialTransactionEntity,
     consistency: TransactionConsistencyUiState?,
+    ruleMatches: List<RuleMatchEntity>,
 ) {
     val deposit = transaction.transactionType == TransactionType.DEPOSIT
     val accent = if (deposit) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
@@ -85,6 +187,14 @@ private fun TransactionCard(
             }
             if (consistency?.internalTransferCandidate == true) {
                 Text("↔ 내부이체 후보", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            }
+            ruleMatches.forEach { match ->
+                Text(
+                    "⚠ ${match.ruleName}: ${match.message}",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
 
             DetailRow("상대방", transaction.counterparty)
