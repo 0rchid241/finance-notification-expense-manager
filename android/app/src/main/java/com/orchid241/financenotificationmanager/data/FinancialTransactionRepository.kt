@@ -142,7 +142,7 @@ class FinancialTransactionRepository(
                         )
                     }
 
-                    val rules = database.userRuleDao().getEnabled().map(UserRuleEntity::toRuleModel)
+                    val rules = database.userRuleDao().getEnabled().map { it.toRuleModel() }
                     ruleEngine.evaluate(storedTransaction, rules).forEach { match ->
                         database.ruleMatchDao().insert(
                             RuleMatchEntity(
