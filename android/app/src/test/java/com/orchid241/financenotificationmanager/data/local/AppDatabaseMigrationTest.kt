@@ -36,7 +36,7 @@ class AppDatabaseMigrationTest {
             old.version = 1
         }
         val migrated = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
             .build()
         try {
             val raw = migrated.rawNotificationDao().getAll().single()
@@ -47,6 +47,8 @@ class AppDatabaseMigrationTest {
             assertEquals("PENDING", raw.processingStatus)
             assertTrue(migrated.financialTransactionDao().observeAll().first().isEmpty())
             assertTrue(migrated.consistencyCandidateDao().observeAll().first().isEmpty())
+            assertTrue(migrated.userRuleDao().observeAll().first().isEmpty())
+            assertTrue(migrated.ruleMatchDao().observeAll().first().isEmpty())
             FinancialTransactionRepository(migrated).collectNotification("new", SupportedFinancialApps.KAKAO_BANK, "입금 1,000원", "가상인물 → 입출금통장(5678)\n잔액 1,000원", 200, 201)
             assertEquals(2, migrated.rawNotificationDao().getAll().size)
             assertEquals(1000L, migrated.financialTransactionDao().observeAll().first().single().amount)
@@ -54,12 +56,14 @@ class AppDatabaseMigrationTest {
             migrated.close()
         }
         val reopened = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3)
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4)
             .build()
         try {
             assertEquals(2, reopened.rawNotificationDao().getAll().size)
             assertEquals(1, reopened.financialTransactionDao().observeAll().first().size)
             assertTrue(reopened.consistencyCandidateDao().observeAll().first().isEmpty())
+            assertTrue(reopened.userRuleDao().observeAll().first().isEmpty())
+            assertTrue(reopened.ruleMatchDao().observeAll().first().isEmpty())
         } finally {
             reopened.close()
             context.deleteDatabase(name)
