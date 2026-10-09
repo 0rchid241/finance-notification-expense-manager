@@ -12,4 +12,7 @@ interface FinancialTransactionDao {
 
     @Query("SELECT * FROM financial_transactions ORDER BY occurredAt DESC, id DESC")
     fun observeAll(): Flow<List<FinancialTransactionEntity>>
+
+    @Query("SELECT * FROM financial_transactions ORDER BY occurredAt DESC, id DESC")
+    suspend fun getAll(): List<FinancialTransactionEntity>
 }
