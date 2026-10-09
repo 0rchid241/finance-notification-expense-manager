@@ -11,9 +11,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.orchid241.financenotificationmanager.data.FinancialTransactionRepository
 import com.orchid241.financenotificationmanager.data.local.AppDatabase
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
+import com.orchid241.financenotificationmanager.ui.TransactionConsistencyUiState
 import com.orchid241.financenotificationmanager.ui.TransactionListScreen
+import com.orchid241.financenotificationmanager.ui.consistencyByTransaction
 import com.orchid241.financenotificationmanager.ui.theme.FinanceNotificationManagerTheme
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.combine
 
 class MainActivity : ComponentActivity() {
     private val repository by lazy { FinancialTransactionRepository(AppDatabase.getInstance(applicationContext)) }
@@ -25,7 +28,15 @@ class MainActivity : ComponentActivity() {
             val state by produceState(TransactionListState()) {
                 lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                     try {
-                        repository.observeAll().collect { value = TransactionListState(transactions = it, loading = false) }
+                        repository.observeAll()
+                            .combine(repository.observeConsistencyCandidates()) { transactions, candidates ->
+                                TransactionListState(
+                                    transactions = transactions,
+                                    consistency = consistencyByTransaction(candidates),
+                                    loading = false,
+                                )
+                            }
+                            .collect { value = it }
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
@@ -34,7 +45,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
             FinanceNotificationManagerTheme {
-                TransactionListScreen(state.transactions, loading = state.loading, failed = state.failed)
+                TransactionListScreen(
+                    transactions = state.transactions,
+                    consistency = state.consistency,
+                    loading = state.loading,
+                    failed = state.failed,
+                )
             }
         }
     }
@@ -42,6 +58,7 @@ class MainActivity : ComponentActivity() {
 
 private data class TransactionListState(
     val transactions: List<FinancialTransactionEntity> = emptyList(),
+    val consistency: Map<Long, TransactionConsistencyUiState> = emptyMap(),
     val loading: Boolean = true,
     val failed: Boolean = false,
 )
