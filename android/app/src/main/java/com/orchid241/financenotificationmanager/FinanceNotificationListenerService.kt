@@ -6,8 +6,8 @@ import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.orchid241.financenotificationmanager.data.FinancialTransactionRepository
 import com.orchid241.financenotificationmanager.data.local.AppDatabase
+import com.orchid241.financenotificationmanager.parser.FinancialNotificationParserRegistry
 import com.orchid241.financenotificationmanager.parser.ParseResult
-import com.orchid241.financenotificationmanager.parser.SupportedFinancialApps
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,12 +17,16 @@ import kotlinx.coroutines.launch
 
 class FinanceNotificationListenerService : NotificationListenerService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val parserRegistry by lazy { FinancialNotificationParserRegistry() }
     private val repository by lazy {
-        FinancialTransactionRepository(AppDatabase.getInstance(applicationContext))
+        FinancialTransactionRepository(
+            AppDatabase.getInstance(applicationContext),
+            parserRegistry,
+        )
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (!SupportedFinancialApps.supports(sbn.packageName)) return
+        if (!parserRegistry.supportsPackage(sbn.packageName)) return
         val receivedAt = System.currentTimeMillis()
         val notificationKey = sbn.key
         val packageName = sbn.packageName
