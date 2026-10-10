@@ -6,7 +6,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import com.orchid241.financenotificationmanager.ui.theme.PrimaryBlue
 
 enum class AppTab(
     val label: String,
@@ -24,6 +23,7 @@ fun AppBottomBar(
     selectedTab: AppTab,
     onTabSelected: (AppTab) -> Unit,
 ) {
+    val primary = MaterialTheme.colorScheme.primary
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
@@ -44,8 +44,8 @@ fun AppBottomBar(
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = PrimaryBlue,
-                    selectedTextColor = PrimaryBlue,
+                    selectedIconColor = primary,
+                    selectedTextColor = primary,
                     indicatorColor = MaterialTheme.colorScheme.primaryContainer,
                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
