@@ -91,33 +91,38 @@ class MainActivity : ComponentActivity() {
                         )
 
                         AppTab.TRANSACTIONS,
-                        AppTab.RULES -> TransactionListScreen(
-                            transactions = state.transactions,
-                            consistency = state.consistency,
-                            rules = state.rules,
-                            ruleMatches = state.ruleMatches,
-                            loading = state.loading,
-                            failed = state.failed,
-                            onAddAmountRule = { threshold ->
-                                lifecycleScope.launch {
-                                    repository.addAmountRule(
-                                        name = "큰 지출",
-                                        amountThreshold = threshold,
-                                        message = "설정한 금액 이상의 지출이 발생했어요.",
-                                    )
-                                }
-                            },
-                            onAddCounterpartyRule = { keyword ->
-                                lifecycleScope.launch {
-                                    repository.addCounterpartyRule(
-                                        name = "상대방 알림",
-                                        keyword = keyword,
-                                        message = "설정한 상대방과의 거래가 발생했어요.",
-                                    )
-                                }
-                            },
-                            modifier = Modifier.padding(innerPadding),
-                        )
+                        AppTab.RULES -> Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding),
+                        ) {
+                            TransactionListScreen(
+                                transactions = state.transactions,
+                                consistency = state.consistency,
+                                rules = state.rules,
+                                ruleMatches = state.ruleMatches,
+                                loading = state.loading,
+                                failed = state.failed,
+                                onAddAmountRule = { threshold ->
+                                    lifecycleScope.launch {
+                                        repository.addAmountRule(
+                                            name = "큰 지출",
+                                            amountThreshold = threshold,
+                                            message = "설정한 금액 이상의 지출이 발생했어요.",
+                                        )
+                                    }
+                                },
+                                onAddCounterpartyRule = { keyword ->
+                                    lifecycleScope.launch {
+                                        repository.addCounterpartyRule(
+                                            name = "상대방 알림",
+                                            keyword = keyword,
+                                            message = "설정한 상대방과의 거래가 발생했어요.",
+                                        )
+                                    }
+                                },
+                            )
+                        }
 
                         AppTab.SETTINGS -> Box(
                             modifier = Modifier
