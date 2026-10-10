@@ -16,6 +16,12 @@ interface UserRuleDao {
 
     @Query("SELECT * FROM user_rules WHERE enabled = 1 ORDER BY createdAt ASC, id ASC")
     suspend fun getEnabled(): List<UserRuleEntity>
+
+    @Query("UPDATE user_rules SET enabled = :enabled WHERE id = :ruleId")
+    suspend fun setEnabled(ruleId: Long, enabled: Boolean)
+
+    @Query("DELETE FROM user_rules WHERE id = :ruleId")
+    suspend fun deleteById(ruleId: Long)
 }
 
 @Dao
