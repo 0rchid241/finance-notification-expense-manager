@@ -7,12 +7,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.orchid241.financenotificationmanager.ui.theme.DuplicateRed
-import com.orchid241.financenotificationmanager.ui.theme.InternalTransferPurple
-import com.orchid241.financenotificationmanager.ui.theme.RuleWarningAmber
+import com.orchid241.financenotificationmanager.ui.theme.FinanceStatusColors
 
 /** 거래 상태를 짧고 일관된 형태로 표시한다. */
 enum class StatusChipType(
@@ -29,9 +26,9 @@ fun StatusChip(
     modifier: Modifier = Modifier,
 ) {
     val accent = when (type) {
-        StatusChipType.DUPLICATE -> DuplicateRed
-        StatusChipType.INTERNAL_TRANSFER -> InternalTransferPurple
-        StatusChipType.RULE_WARNING -> RuleWarningAmber
+        StatusChipType.DUPLICATE -> FinanceStatusColors.Duplicate
+        StatusChipType.INTERNAL_TRANSFER -> FinanceStatusColors.InternalTransfer
+        StatusChipType.RULE_WARNING -> FinanceStatusColors.Warning
     }
 
     Surface(
@@ -45,7 +42,7 @@ fun StatusChip(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Medium,
-            color = Color.Unspecified,
+            color = accent,
         )
     }
 }
