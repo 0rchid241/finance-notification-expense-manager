@@ -1,4 +1,4 @@
-name: Android Debug APK
+name: Android External Test APK
 
 on:
   push:
@@ -42,13 +42,13 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug
+      - name: Build external test APK
+        run: ./gradlew assembleExternalDebug
 
-      - name: Upload debug APK
+      - name: Upload external test APK
         uses: actions/upload-artifact@v4
         with:
-          name: finance-notification-manager-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: finance-notification-manager-external-dev
+          path: android/app/build/outputs/apk/externalDebug/app-externalDebug.apk
           if-no-files-found: error
           retention-days: 14
