@@ -1,5 +1,6 @@
 package com.orchid241.financenotificationmanager.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,7 @@ fun HomeScreen(
     ruleMatches: Map<Long, List<RuleMatchEntity>>,
     loading: Boolean,
     failed: Boolean,
+    onViewAllTransactions: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val monthRange = currentMonthRange()
@@ -154,7 +156,19 @@ fun HomeScreen(
         }
 
         item {
-            SectionHeader(title = "최근 거래")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SectionHeader(title = "최근 거래")
+                Text(
+                    text = "전체 거래 보기 ›",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onViewAllTransactions).padding(vertical = 8.dp),
+                )
+            }
         }
 
         when {
