@@ -51,6 +51,7 @@ private object ColorTokens {
 @Composable
 fun FinanceNotificationManagerTheme(
     darkTheme: Boolean = false,
+    @Suppress("UNUSED_PARAMETER") dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     MaterialTheme(
