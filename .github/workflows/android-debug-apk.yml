@@ -18,6 +18,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
+
     defaults:
       run:
         working-directory: android
@@ -52,3 +57,22 @@ jobs:
           path: android/app/build/outputs/apk/externalDebug/app-externalDebug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Prepare Firebase service account
+        if: ${{ github.event_name != 'pull_request' && env.FIREBASE_APP_ID != '' && env.FIREBASE_SERVICE_ACCOUNT_JSON != '' && env.FIREBASE_TESTERS != '' }}
+        run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > firebase-service-account.json
+
+      - name: Install Firebase CLI
+        if: ${{ github.event_name != 'pull_request' && env.FIREBASE_APP_ID != '' && env.FIREBASE_SERVICE_ACCOUNT_JSON != '' && env.FIREBASE_TESTERS != '' }}
+        run: npm install --global firebase-tools
+
+      - name: Distribute external test APK with Firebase
+        if: ${{ github.event_name != 'pull_request' && env.FIREBASE_APP_ID != '' && env.FIREBASE_SERVICE_ACCOUNT_JSON != '' && env.FIREBASE_TESTERS != '' }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/android/firebase-service-account.json
+        run: >-
+          firebase appdistribution:distribute
+          app/build/outputs/apk/externalDebug/app-externalDebug.apk
+          --app "$FIREBASE_APP_ID"
+          --testers "$FIREBASE_TESTERS"
+          --release-notes "${GITHUB_REF_NAME} · ${GITHUB_SHA::7}"
