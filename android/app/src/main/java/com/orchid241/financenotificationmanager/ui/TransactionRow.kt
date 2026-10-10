@@ -1,5 +1,6 @@
 package com.orchid241.financenotificationmanager.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,10 +23,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/**
- * 거래 한 건을 카드가 아닌 고밀도 리스트 Row로 표현한다.
- * 홈의 최근 거래와 거래 전체 목록에서 동일하게 재사용한다.
- */
+/** 홈과 거래 목록에서 재사용하는 고밀도 거래 행. */
 @Composable
 fun TransactionRow(
     transaction: FinancialTransactionEntity,
@@ -33,11 +31,17 @@ fun TransactionRow(
     ruleMatches: List<RuleMatchEntity> = emptyList(),
     modifier: Modifier = Modifier,
     showDivider: Boolean = true,
+    onClick: (() -> Unit)? = null,
 ) {
     val deposit = transaction.transactionType == TransactionType.DEPOSIT
     val amountColor = if (deposit) FinanceStatusColors.Inflow else FinanceStatusColors.Outflow
+    val rowModifier = if (onClick != null) {
+        modifier.fillMaxWidth().clickable(onClick = onClick)
+    } else {
+        modifier.fillMaxWidth()
+    }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = rowModifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
