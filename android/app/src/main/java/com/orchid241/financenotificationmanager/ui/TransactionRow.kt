@@ -2,7 +2,6 @@ package com.orchid241.financenotificationmanager.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -68,10 +67,7 @@ fun TransactionRow(
                     ruleMatches.isNotEmpty()
 
                 if (hasStatus) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (consistency?.duplicateCandidate == true) {
                             StatusChip(StatusChipType.DUPLICATE)
                         }
