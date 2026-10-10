@@ -89,6 +89,7 @@ class MainActivity : ComponentActivity() {
                             ruleMatches = state.ruleMatches,
                             loading = state.loading,
                             failed = state.failed,
+                            onViewAllTransactions = { selectedTab = AppTab.TRANSACTIONS },
                             modifier = screenModifier,
                         )
 
