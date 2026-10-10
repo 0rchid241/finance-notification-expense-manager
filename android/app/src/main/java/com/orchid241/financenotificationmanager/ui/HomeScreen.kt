@@ -19,14 +19,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
 import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
 import com.orchid241.financenotificationmanager.parser.TransactionType
-import com.orchid241.financenotificationmanager.ui.theme.DepositBlue
-import com.orchid241.financenotificationmanager.ui.theme.WarningAmber
-import com.orchid241.financenotificationmanager.ui.theme.WithdrawalRed
+import com.orchid241.financenotificationmanager.ui.theme.FinanceStatusColors
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -106,20 +105,20 @@ fun HomeScreen(
             ) {
                 SummaryMetric(
                     label = "지출",
-                    value = money(expense),
-                    valueColor = WithdrawalRed,
+                    value = formatHomeMoney(expense),
+                    valueColor = FinanceStatusColors.Outflow,
                     modifier = Modifier.weight(1f),
                 )
                 SummaryMetric(
                     label = "입금",
-                    value = money(income),
-                    valueColor = DepositBlue,
+                    value = formatHomeMoney(income),
+                    valueColor = FinanceStatusColors.Inflow,
                     modifier = Modifier.weight(1f),
                 )
                 SummaryMetric(
                     label = "확인 필요",
                     value = "${attentionIds.size}건",
-                    valueColor = WarningAmber,
+                    valueColor = FinanceStatusColors.Warning,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -140,13 +139,13 @@ fun HomeScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             if (duplicateCount > 0) {
-                                AttentionRow("중복 의심", "${duplicateCount}건", StatusChipType.DUPLICATE)
+                                AttentionRow("${duplicateCount}건", StatusChipType.DUPLICATE)
                             }
                             if (transferCount > 0) {
-                                AttentionRow("내부이체 후보", "${transferCount}건", StatusChipType.INTERNAL_TRANSFER)
+                                AttentionRow("${transferCount}건", StatusChipType.INTERNAL_TRANSFER)
                             }
                             if (ruleWarningCount > 0) {
-                                AttentionRow("규칙 경고", "${ruleWarningCount}건", StatusChipType.RULE_WARNING)
+                                AttentionRow("${ruleWarningCount}건", StatusChipType.RULE_WARNING)
                             }
                         }
                     }
@@ -204,7 +203,7 @@ private fun MonthlySummaryCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = money(expense),
+                text = formatHomeMoney(expense),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -212,8 +211,8 @@ private fun MonthlySummaryCard(
             if (previousExpense > 0) {
                 val difference = previousExpense - expense
                 val comparisonText = when {
-                    difference > 0 -> "지난달보다 ${money(difference)} 적게 사용했어요"
-                    difference < 0 -> "지난달보다 ${money(-difference)} 더 사용했어요"
+                    difference > 0 -> "지난달보다 ${formatHomeMoney(difference)} 적게 사용했어요"
+                    difference < 0 -> "지난달보다 ${formatHomeMoney(-difference)} 더 사용했어요"
                     else -> "지난달과 같은 금액을 사용했어요"
                 }
                 Text(
@@ -230,7 +229,7 @@ private fun MonthlySummaryCard(
 private fun SummaryMetric(
     label: String,
     value: String,
-    valueColor: androidx.compose.ui.graphics.Color,
+    valueColor: Color,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -259,7 +258,6 @@ private fun SummaryMetric(
 
 @Composable
 private fun AttentionRow(
-    label: String,
     count: String,
     type: StatusChipType,
 ) {
@@ -328,5 +326,5 @@ private fun previousMonthRange(): LongRange {
     return start.timeInMillis until end.timeInMillis
 }
 
-private fun money(amount: Long): String =
+private fun formatHomeMoney(amount: Long): String =
     NumberFormat.getIntegerInstance(Locale.KOREA).format(amount) + "원"
