@@ -16,8 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
 import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
 import com.orchid241.financenotificationmanager.parser.TransactionType
-import com.orchid241.financenotificationmanager.ui.theme.DepositBlue
-import com.orchid241.financenotificationmanager.ui.theme.WithdrawalRed
+import com.orchid241.financenotificationmanager.ui.theme.FinanceStatusColors
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,7 +35,7 @@ fun TransactionRow(
     showDivider: Boolean = true,
 ) {
     val deposit = transaction.transactionType == TransactionType.DEPOSIT
-    val amountColor = if (deposit) DepositBlue else WithdrawalRed
+    val amountColor = if (deposit) FinanceStatusColors.Inflow else FinanceStatusColors.Outflow
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -82,7 +81,7 @@ fun TransactionRow(
             }
 
             Text(
-                text = (if (deposit) "+" else "-") + money(transaction.amount),
+                text = (if (deposit) "+" else "-") + formatTransactionAmount(transaction.amount),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = amountColor,
@@ -98,5 +97,5 @@ fun TransactionRow(
 private fun transactionTime(timestamp: Long): String =
     SimpleDateFormat("M월 d일 HH:mm", Locale.KOREA).format(Date(timestamp))
 
-private fun money(amount: Long): String =
+private fun formatTransactionAmount(amount: Long): String =
     NumberFormat.getIntegerInstance(Locale.KOREA).format(amount) + "원"
