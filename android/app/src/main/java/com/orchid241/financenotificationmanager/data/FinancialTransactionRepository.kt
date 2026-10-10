@@ -73,6 +73,18 @@ class FinancialTransactionRepository(
         )
     }
 
+    suspend fun setRuleEnabled(ruleId: Long, enabled: Boolean) {
+        database.userRuleDao().setEnabled(ruleId, enabled)
+    }
+
+    suspend fun deleteRule(ruleId: Long) {
+        database.userRuleDao().deleteById(ruleId)
+    }
+
+    suspend fun clearAllData() {
+        database.clearAllTables()
+    }
+
     private suspend fun addRule(rule: UserRuleEntity): Long = database.withTransaction {
         val ruleId = database.userRuleDao().insert(rule)
         val storedRule = rule.copy(id = ruleId).toRuleModel()
