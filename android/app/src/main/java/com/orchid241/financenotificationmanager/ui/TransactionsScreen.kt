@@ -83,6 +83,7 @@ fun TransactionsScreen(
                 val state = consistency[transaction.id]
                 state?.duplicateCandidate == true ||
                     state?.internalTransferCandidate == true ||
+                    state?.refundCandidate == true ||
                     ruleMatches[transaction.id].orEmpty().isNotEmpty()
             }
         }
@@ -233,7 +234,27 @@ private fun TransactionDetailScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (consistency?.duplicateCandidate == true) StatusChip(StatusChipType.DUPLICATE)
                         if (consistency?.internalTransferCandidate == true) StatusChip(StatusChipType.INTERNAL_TRANSFER)
+                        if (consistency?.refundCandidate == true) StatusChip(StatusChipType.REFUND)
                         if (ruleMatches.isNotEmpty()) StatusChip(StatusChipType.RULE_WARNING)
+                    }
+                }
+            }
+        }
+
+        if (consistency?.refundCandidate == true) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("취소/환불 후보", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "같은 계좌에서 같은 상대방·금액의 출금 후 입금 거래가 확인됐어요. 자동 확정하지 않고 확인이 필요한 후보로 표시합니다.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
