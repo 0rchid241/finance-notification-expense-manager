@@ -36,10 +36,13 @@ fun SettingsScreen(
     darkMode: Boolean,
     onDarkModeChanged: (Boolean) -> Unit,
     onResetData: () -> Unit,
+    showDeveloperTools: Boolean = false,
+    onAddRefundDemoData: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     var confirmReset by remember { mutableStateOf(false) }
+    var confirmDemoData by remember { mutableStateOf(false) }
     val notificationAccessEnabled = remember {
         NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
     }
@@ -91,6 +94,19 @@ fun SettingsScreen(
             }
         }
 
+        if (showDeveloperTools) {
+            item {
+                SettingsSection(title = "개발 도구") {
+                    SettingRow(
+                        title = "취소·환불 시연 데이터 생성",
+                        description = "8,000원 출금 후 같은 금액이 돌아오는 테스트 거래 2건을 추가해요",
+                        trailing = "생성",
+                        onClick = { confirmDemoData = true },
+                    )
+                }
+            }
+        }
+
         item {
             SettingsSection(title = "데이터") {
                 SettingRow(
@@ -109,6 +125,30 @@ fun SettingsScreen(
                 SettingRow(title = "저장 방식", description = "금융 데이터는 기기 내부 Room DB에 저장돼요", trailing = "로컬")
             }
         }
+    }
+
+    if (confirmDemoData) {
+        AlertDialog(
+            onDismissRequest = { confirmDemoData = false },
+            title = { Text("시연 데이터를 만들까?") },
+            text = {
+                Text(
+                    "스타벅스 정릉점 8,000원 출금과 1시간 뒤 동일 금액 입금 거래를 추가해. " +
+                        "앱이 두 거래를 취소·환불 후보로 판단하는지 바로 확인할 수 있어.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDemoData = false
+                        onAddRefundDemoData()
+                    },
+                ) { Text("생성") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDemoData = false }) { Text("취소") }
+            },
+        )
     }
 
     if (confirmReset) {
