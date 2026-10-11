@@ -85,19 +85,91 @@ class TransactionConsistencyEngineTest {
         assertTrue(engine.findCandidates(listOf(withdrawal, deposit)).isEmpty())
     }
 
-    @Test fun oppositeDirectionsOnSameAccountAreIgnored() {
-        val withdrawal = transaction(id = 1, type = TransactionType.WITHDRAWAL)
-        val deposit = transaction(id = 2, type = TransactionType.DEPOSIT)
+    @Test fun oppositeDirectionsOnSameAccountAndSameCounterpartyBecomeRefundCandidate() {
+        val withdrawal = transaction(
+            id = 1,
+            type = TransactionType.WITHDRAWAL,
+            amount = 8_000,
+            counterparty = "스타벅스 정릉점",
+            accountLast4 = "1234",
+            occurredAt = 1_000_000,
+        )
+        val deposit = transaction(
+            id = 2,
+            type = TransactionType.DEPOSIT,
+            amount = 8_000,
+            counterparty = "스타벅스정릉점",
+            accountLast4 = "1234",
+            occurredAt = 1_000_000 + 24 * 60 * 60 * 1000L,
+        )
+
+        val result = engine.findCandidates(listOf(withdrawal, deposit))
+
+        assertEquals(1, result.size)
+        assertEquals(ConsistencyRelationType.REFUND_CANDIDATE, result.single().relationType)
+        assertEquals(1L, result.single().firstTransactionId)
+        assertEquals(2L, result.single().secondTransactionId)
+    }
+
+    @Test fun refundWithDifferentCounterpartyIsIgnored() {
+        val withdrawal = transaction(id = 1, type = TransactionType.WITHDRAWAL, counterparty = "스타벅스")
+        val deposit = transaction(
+            id = 2,
+            type = TransactionType.DEPOSIT,
+            counterparty = "김철수",
+            occurredAt = 1_000_000 + 60_000,
+        )
 
         assertTrue(engine.findCandidates(listOf(withdrawal, deposit)).isEmpty())
     }
 
-    @Test fun internalTransferOutsideFiveMinutesIsIgnored() {
+    @Test fun refundWithDifferentAccountIsInternalTransferCandidateNotRefund() {
         val withdrawal = transaction(id = 1, type = TransactionType.WITHDRAWAL, accountLast4 = "1234")
         val deposit = transaction(
             id = 2,
             type = TransactionType.DEPOSIT,
             accountLast4 = "5678",
+            occurredAt = 1_120_000,
+        )
+
+        val result = engine.findCandidates(listOf(withdrawal, deposit))
+
+        assertEquals(1, result.size)
+        assertEquals(ConsistencyRelationType.INTERNAL_TRANSFER_CANDIDATE, result.single().relationType)
+    }
+
+    @Test fun refundAfterFourteenDaysIsIgnored() {
+        val withdrawal = transaction(id = 1, type = TransactionType.WITHDRAWAL)
+        val deposit = transaction(
+            id = 2,
+            type = TransactionType.DEPOSIT,
+            occurredAt = 1_000_000 + 14 * 24 * 60 * 60 * 1000L + 1,
+        )
+
+        assertTrue(engine.findCandidates(listOf(withdrawal, deposit)).isEmpty())
+    }
+
+    @Test fun depositBeforeWithdrawalIsNotRefund() {
+        val deposit = transaction(id = 1, type = TransactionType.DEPOSIT, occurredAt = 1_000_000)
+        val withdrawal = transaction(id = 2, type = TransactionType.WITHDRAWAL, occurredAt = 1_060_000)
+
+        assertTrue(engine.findCandidates(listOf(deposit, withdrawal)).isEmpty())
+    }
+
+    @Test fun blankAccountsDoNotCreateInternalTransferOrRefundCandidates() {
+        val withdrawal = transaction(id = 1, type = TransactionType.WITHDRAWAL, accountLast4 = "")
+        val deposit = transaction(id = 2, type = TransactionType.DEPOSIT, accountLast4 = "", occurredAt = 1_060_000)
+
+        assertTrue(engine.findCandidates(listOf(withdrawal, deposit)).isEmpty())
+    }
+
+    @Test fun internalTransferOutsideFiveMinutesIsIgnored() {
+        val withdrawal = transaction(id = 1, type = TransactionType.WITHDRAWAL, accountLast4 = "1234", counterparty = "내 계좌 A")
+        val deposit = transaction(
+            id = 2,
+            type = TransactionType.DEPOSIT,
+            accountLast4 = "5678",
+            counterparty = "내 계좌 B",
             occurredAt = 1_300_001,
         )
 
