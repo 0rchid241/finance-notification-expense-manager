@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
@@ -27,6 +28,7 @@ import com.orchid241.financenotificationmanager.ui.HomeScreen
 import com.orchid241.financenotificationmanager.ui.RulesScreen
 import com.orchid241.financenotificationmanager.ui.SettingsScreen
 import com.orchid241.financenotificationmanager.ui.TransactionConsistencyUiState
+import com.orchid241.financenotificationmanager.ui.TransactionFilter
 import com.orchid241.financenotificationmanager.ui.TransactionsScreen
 import com.orchid241.financenotificationmanager.ui.consistencyByTransaction
 import com.orchid241.financenotificationmanager.ui.theme.FinanceNotificationManagerTheme
@@ -51,11 +53,20 @@ class MainActivity : ComponentActivity() {
                             repository.observeUserRules(),
                             repository.observeRuleMatches(),
                         ) { transactions, candidates, rules, matches ->
+                            val enabledRuleIds = rules
+                                .asSequence()
+                                .filter(UserRuleEntity::enabled)
+                                .map(UserRuleEntity::id)
+                                .toSet()
+                            val visibleMatches = matches
+                                .filter { it.ruleId in enabledRuleIds }
+                                .groupBy(RuleMatchEntity::transactionId)
+
                             TransactionListState(
                                 transactions = transactions,
                                 consistency = consistencyByTransaction(candidates),
                                 rules = rules,
-                                ruleMatches = matches.groupBy(RuleMatchEntity::transactionId),
+                                ruleMatches = visibleMatches,
                                 loading = false,
                             )
                         }.collect { value = it }
@@ -69,7 +80,9 @@ class MainActivity : ComponentActivity() {
 
             val preferences = remember { getSharedPreferences("app_settings", MODE_PRIVATE) }
             var darkMode by remember { mutableStateOf(preferences.getBoolean("dark_mode", false)) }
-            var selectedTab by remember { mutableStateOf(AppTab.HOME) }
+            var selectedTab by rememberSaveable { mutableStateOf(AppTab.HOME) }
+            var transactionFilter by rememberSaveable { mutableStateOf(TransactionFilter.ALL) }
+            var selectedTransactionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
             FinanceNotificationManagerTheme(darkTheme = darkMode) {
                 Scaffold(
@@ -77,7 +90,10 @@ class MainActivity : ComponentActivity() {
                     bottomBar = {
                         AppBottomBar(
                             selectedTab = selectedTab,
-                            onTabSelected = { selectedTab = it },
+                            onTabSelected = { tab ->
+                                selectedTab = tab
+                                selectedTransactionId = null
+                            },
                         )
                     },
                 ) { innerPadding ->
@@ -89,7 +105,15 @@ class MainActivity : ComponentActivity() {
                             ruleMatches = state.ruleMatches,
                             loading = state.loading,
                             failed = state.failed,
-                            onViewAllTransactions = { selectedTab = AppTab.TRANSACTIONS },
+                            onViewTransactions = { filter ->
+                                transactionFilter = filter
+                                selectedTransactionId = null
+                                selectedTab = AppTab.TRANSACTIONS
+                            },
+                            onViewTransactionDetail = { transactionId ->
+                                selectedTransactionId = transactionId
+                                selectedTab = AppTab.TRANSACTIONS
+                            },
                             modifier = screenModifier,
                         )
 
@@ -99,6 +123,11 @@ class MainActivity : ComponentActivity() {
                             ruleMatches = state.ruleMatches,
                             loading = state.loading,
                             failed = state.failed,
+                            selectedFilter = transactionFilter,
+                            onFilterSelected = { transactionFilter = it },
+                            selectedTransactionId = selectedTransactionId,
+                            onTransactionSelected = { selectedTransactionId = it },
+                            onDetailBack = { selectedTransactionId = null },
                             modifier = screenModifier,
                         )
 
