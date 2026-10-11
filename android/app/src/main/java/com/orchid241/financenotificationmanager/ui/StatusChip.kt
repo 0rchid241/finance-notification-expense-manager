@@ -17,6 +17,7 @@ enum class StatusChipType(
 ) {
     DUPLICATE("중복 의심"),
     INTERNAL_TRANSFER("내부이체 후보"),
+    REFUND("취소/환불 후보"),
     RULE_WARNING("규칙 경고"),
 }
 
@@ -28,6 +29,7 @@ fun StatusChip(
     val accent = when (type) {
         StatusChipType.DUPLICATE -> FinanceStatusColors.Duplicate
         StatusChipType.INTERNAL_TRANSFER -> FinanceStatusColors.InternalTransfer
+        StatusChipType.REFUND -> FinanceStatusColors.Success
         StatusChipType.RULE_WARNING -> FinanceStatusColors.Warning
     }
 
