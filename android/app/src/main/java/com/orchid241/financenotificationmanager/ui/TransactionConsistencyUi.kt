@@ -6,6 +6,7 @@ import com.orchid241.financenotificationmanager.data.local.ConsistencyCandidateE
 data class TransactionConsistencyUiState(
     val duplicateCandidate: Boolean = false,
     val internalTransferCandidate: Boolean = false,
+    val refundCandidate: Boolean = false,
 )
 
 internal fun consistencyByTransaction(
@@ -19,6 +20,7 @@ internal fun consistencyByTransaction(
             result[transactionId] = when (candidate.relationType) {
                 ConsistencyRelationType.DUPLICATE_CANDIDATE -> current.copy(duplicateCandidate = true)
                 ConsistencyRelationType.INTERNAL_TRANSFER_CANDIDATE -> current.copy(internalTransferCandidate = true)
+                ConsistencyRelationType.REFUND_CANDIDATE -> current.copy(refundCandidate = true)
             }
         }
     }
