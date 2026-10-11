@@ -169,6 +169,10 @@ class MainActivity : ComponentActivity() {
                             onResetData = {
                                 lifecycleScope.launch(Dispatchers.IO) { repository.clearAllData() }
                             },
+                            showDeveloperTools = BuildConfig.DEBUG,
+                            onAddRefundDemoData = {
+                                lifecycleScope.launch(Dispatchers.IO) { repository.addRefundDemoData() }
+                            },
                             modifier = screenModifier,
                         )
                     }
