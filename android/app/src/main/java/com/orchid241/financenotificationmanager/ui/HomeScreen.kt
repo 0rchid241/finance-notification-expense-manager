@@ -39,7 +39,8 @@ fun HomeScreen(
     ruleMatches: Map<Long, List<RuleMatchEntity>>,
     loading: Boolean,
     failed: Boolean,
-    onViewAllTransactions: () -> Unit = {},
+    onViewTransactions: (TransactionFilter) -> Unit = {},
+    onViewTransactionDetail: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val monthRange = currentMonthRange()
@@ -109,18 +110,21 @@ fun HomeScreen(
                     label = "지출",
                     value = formatHomeMoney(expense),
                     valueColor = FinanceStatusColors.Outflow,
+                    onClick = { onViewTransactions(TransactionFilter.EXPENSE) },
                     modifier = Modifier.weight(1f),
                 )
                 SummaryMetric(
                     label = "입금",
                     value = formatHomeMoney(income),
                     valueColor = FinanceStatusColors.Inflow,
+                    onClick = { onViewTransactions(TransactionFilter.INCOME) },
                     modifier = Modifier.weight(1f),
                 )
                 SummaryMetric(
                     label = "확인 필요",
                     value = "${attentionIds.size}건",
                     valueColor = FinanceStatusColors.Warning,
+                    onClick = { onViewTransactions(TransactionFilter.ATTENTION) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -141,13 +145,25 @@ fun HomeScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             if (duplicateCount > 0) {
-                                AttentionRow("${duplicateCount}건", StatusChipType.DUPLICATE)
+                                AttentionRow(
+                                    count = "${duplicateCount}건",
+                                    type = StatusChipType.DUPLICATE,
+                                    onClick = { onViewTransactions(TransactionFilter.ATTENTION) },
+                                )
                             }
                             if (transferCount > 0) {
-                                AttentionRow("${transferCount}건", StatusChipType.INTERNAL_TRANSFER)
+                                AttentionRow(
+                                    count = "${transferCount}건",
+                                    type = StatusChipType.INTERNAL_TRANSFER,
+                                    onClick = { onViewTransactions(TransactionFilter.ATTENTION) },
+                                )
                             }
                             if (ruleWarningCount > 0) {
-                                AttentionRow("${ruleWarningCount}건", StatusChipType.RULE_WARNING)
+                                AttentionRow(
+                                    count = "${ruleWarningCount}건",
+                                    type = StatusChipType.RULE_WARNING,
+                                    onClick = { onViewTransactions(TransactionFilter.ATTENTION) },
+                                )
                             }
                         }
                     }
@@ -166,7 +182,9 @@ fun HomeScreen(
                     text = "전체 거래 보기 ›",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable(onClick = onViewAllTransactions).padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .clickable { onViewTransactions(TransactionFilter.ALL) }
+                        .padding(vertical = 8.dp),
                 )
             }
         }
@@ -190,6 +208,7 @@ fun HomeScreen(
                         transaction = transaction,
                         consistency = consistency[transaction.id],
                         ruleMatches = ruleMatches[transaction.id].orEmpty(),
+                        onClick = { onViewTransactionDetail(transaction.id) },
                     )
                 }
             }
@@ -244,10 +263,11 @@ private fun SummaryMetric(
     label: String,
     value: String,
     valueColor: Color,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.clickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
     ) {
@@ -274,9 +294,13 @@ private fun SummaryMetric(
 private fun AttentionRow(
     count: String,
     type: StatusChipType,
+    onClick: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
