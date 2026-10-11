@@ -9,6 +9,7 @@ import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
 import com.orchid241.financenotificationmanager.data.local.UserRuleEntity
 import com.orchid241.financenotificationmanager.parser.FinancialNotificationParserRegistry
 import com.orchid241.financenotificationmanager.parser.ParseResult
+import com.orchid241.financenotificationmanager.parser.TransactionType
 import com.orchid241.financenotificationmanager.rules.RuleConditionType
 import com.orchid241.financenotificationmanager.rules.TransactionRuleEngine
 import com.orchid241.financenotificationmanager.rules.UserRule
@@ -83,6 +84,100 @@ class FinancialTransactionRepository(
 
     suspend fun clearAllData() {
         database.clearAllTables()
+    }
+
+    /**
+     * Debug 빌드에서 발표/개발 검증에 사용할 취소·환불 시연 거래 2건을 생성한다.
+     * 실제 알림 수집 흐름과 분리되어 있으며, 같은 계좌/상대방/금액의 출금 후 입금으로 구성한다.
+     */
+    suspend fun addRefundDemoData() = database.withTransaction {
+        val now = System.currentTimeMillis()
+        val withdrawalAt = now - 2 * 60 * 60 * 1000L
+        val refundAt = now - 60 * 60 * 1000L
+        val demoKey = "demo-refund-$now"
+
+        val withdrawalRawId = rawRepository.saveRawNotification(
+            notificationKey = "$demoKey-withdrawal",
+            packageName = "demo.presentation",
+            title = "[시연] 카카오뱅크 출금",
+            text = "스타벅스 정릉점 8,000원 출금",
+            postedAt = withdrawalAt,
+            receivedAt = withdrawalAt,
+        )
+        val refundRawId = rawRepository.saveRawNotification(
+            notificationKey = "$demoKey-refund",
+            packageName = "demo.presentation",
+            title = "[시연] 카카오뱅크 입금",
+            text = "스타벅스 정릉점 8,000원 입금",
+            postedAt = refundAt,
+            receivedAt = refundAt,
+        )
+
+        val withdrawalId = database.financialTransactionDao().insert(
+            FinancialTransactionEntity(
+                rawNotificationId = withdrawalRawId,
+                transactionType = TransactionType.WITHDRAWAL,
+                amount = 8_000,
+                counterparty = "스타벅스 정릉점",
+                accountLast4 = "2410",
+                balance = 492_000,
+                source = "카카오뱅크 · 시연",
+                occurredAt = withdrawalAt,
+                createdAt = now,
+            ),
+        )
+        val refundId = database.financialTransactionDao().insert(
+            FinancialTransactionEntity(
+                rawNotificationId = refundRawId,
+                transactionType = TransactionType.DEPOSIT,
+                amount = 8_000,
+                counterparty = "스타벅스 정릉점",
+                accountLast4 = "2410",
+                balance = 500_000,
+                source = "카카오뱅크 · 시연",
+                occurredAt = refundAt,
+                createdAt = now,
+            ),
+        )
+
+        val demoIds = setOf(withdrawalId, refundId)
+        val createdAt = System.currentTimeMillis()
+        consistencyEngine
+            .findCandidates(database.financialTransactionDao().getAll())
+            .filter { candidate ->
+                candidate.firstTransactionId in demoIds || candidate.secondTransactionId in demoIds
+            }
+            .forEach { candidate ->
+                database.consistencyCandidateDao().insert(
+                    ConsistencyCandidateEntity(
+                        firstTransactionId = candidate.firstTransactionId,
+                        secondTransactionId = candidate.secondTransactionId,
+                        relationType = candidate.relationType,
+                        reasonText = candidate.reasons.joinToString(" · "),
+                        createdAt = createdAt,
+                    ),
+                )
+            }
+
+        val rules = database.userRuleDao().getEnabled().map { it.toRuleModel() }
+        database.financialTransactionDao().getAll()
+            .filter { it.id in demoIds }
+            .forEach { transaction ->
+                ruleEngine.evaluate(transaction, rules).forEach { match ->
+                    database.ruleMatchDao().insert(
+                        RuleMatchEntity(
+                            ruleId = match.ruleId,
+                            transactionId = match.transactionId,
+                            ruleName = match.ruleName,
+                            message = match.message,
+                            createdAt = createdAt,
+                        ),
+                    )
+                }
+            }
+
+        database.rawNotificationDao().updateProcessingStatus(withdrawalRawId, RawProcessingStatus.PROCESSED)
+        database.rawNotificationDao().updateProcessingStatus(refundRawId, RawProcessingStatus.PROCESSED)
     }
 
     private suspend fun addRule(rule: UserRuleEntity): Long = database.withTransaction {
