@@ -19,7 +19,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,11 +49,14 @@ fun TransactionsScreen(
     ruleMatches: Map<Long, List<RuleMatchEntity>>,
     loading: Boolean,
     failed: Boolean,
+    selectedFilter: TransactionFilter,
+    onFilterSelected: (TransactionFilter) -> Unit,
+    selectedTransactionId: Long?,
+    onTransactionSelected: (Long) -> Unit,
+    onDetailBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var monthOffset by rememberSaveable { mutableIntStateOf(0) }
-    var filterName by rememberSaveable { mutableStateOf(TransactionFilter.ALL.name) }
-    var selectedTransactionId by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val selectedTransaction = selectedTransactionId?.let { id -> transactions.firstOrNull { it.id == id } }
     if (selectedTransaction != null) {
@@ -62,7 +64,7 @@ fun TransactionsScreen(
             transaction = selectedTransaction,
             consistency = consistency[selectedTransaction.id],
             ruleMatches = ruleMatches[selectedTransaction.id].orEmpty(),
-            onBack = { selectedTransactionId = null },
+            onBack = onDetailBack,
             modifier = modifier,
         )
         return
@@ -72,7 +74,6 @@ fun TransactionsScreen(
     val monthTransactions = transactions.filter { it.occurredAt in range }
     val expense = monthTransactions.filter { it.transactionType != TransactionType.DEPOSIT }.sumOf { it.amount }
     val income = monthTransactions.filter { it.transactionType == TransactionType.DEPOSIT }.sumOf { it.amount }
-    val selectedFilter = TransactionFilter.valueOf(filterName)
     val filtered = monthTransactions.filter { transaction ->
         when (selectedFilter) {
             TransactionFilter.ALL -> true
@@ -149,7 +150,7 @@ fun TransactionsScreen(
                     FilterPill(
                         label = filter.label,
                         selected = selectedFilter == filter,
-                        onClick = { filterName = filter.name },
+                        onClick = { onFilterSelected(filter) },
                     )
                 }
             }
@@ -173,7 +174,7 @@ fun TransactionsScreen(
                         transaction = transaction,
                         consistency = consistency[transaction.id],
                         ruleMatches = ruleMatches[transaction.id].orEmpty(),
-                        onClick = { selectedTransactionId = transaction.id },
+                        onClick = { onTransactionSelected(transaction.id) },
                     )
                 }
             }
