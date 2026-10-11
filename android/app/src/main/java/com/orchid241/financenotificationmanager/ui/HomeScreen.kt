@@ -63,6 +63,7 @@ fun HomeScreen(
             val state = consistency[transaction.id]
             state?.duplicateCandidate == true ||
                 state?.internalTransferCandidate == true ||
+                state?.refundCandidate == true ||
                 ruleMatches[transaction.id].orEmpty().isNotEmpty()
         }
         .map { it.id }
@@ -70,6 +71,7 @@ fun HomeScreen(
 
     val duplicateCount = monthTransactions.count { consistency[it.id]?.duplicateCandidate == true }
     val transferCount = monthTransactions.count { consistency[it.id]?.internalTransferCandidate == true }
+    val refundCount = monthTransactions.count { consistency[it.id]?.refundCandidate == true }
     val ruleWarningCount = monthTransactions.count { ruleMatches[it.id].orEmpty().isNotEmpty() }
     val recentTransactions = transactions.sortedByDescending { it.occurredAt }.take(5)
 
@@ -130,7 +132,7 @@ fun HomeScreen(
             }
         }
 
-        if (duplicateCount + transferCount + ruleWarningCount > 0) {
+        if (duplicateCount + transferCount + refundCount + ruleWarningCount > 0) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SectionHeader(title = "주의가 필요한 거래")
@@ -155,6 +157,13 @@ fun HomeScreen(
                                 AttentionRow(
                                     count = "${transferCount}건",
                                     type = StatusChipType.INTERNAL_TRANSFER,
+                                    onClick = { onViewTransactions(TransactionFilter.ATTENTION) },
+                                )
+                            }
+                            if (refundCount > 0) {
+                                AttentionRow(
+                                    count = "${refundCount}건",
+                                    type = StatusChipType.REFUND,
                                     onClick = { onViewTransactions(TransactionFilter.ATTENTION) },
                                 )
                             }
@@ -190,18 +199,9 @@ fun HomeScreen(
         }
 
         when {
-            loading -> item {
-                EmptyMessage("거래 내역을 불러오는 중이에요.")
-            }
-
-            failed -> item {
-                EmptyMessage("거래 내역을 불러오지 못했어요.")
-            }
-
-            recentTransactions.isEmpty() -> item {
-                EmptyMessage("아직 저장된 거래가 없어요.")
-            }
-
+            loading -> item { EmptyMessage("거래 내역을 불러오는 중이에요.") }
+            failed -> item { EmptyMessage("거래 내역을 불러오지 못했어요.") }
+            recentTransactions.isEmpty() -> item { EmptyMessage("아직 저장된 거래가 없어요.") }
             else -> {
                 items(recentTransactions, key = { it.id }) { transaction ->
                     TransactionRow(
@@ -217,10 +217,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun MonthlySummaryCard(
-    expense: Long,
-    previousExpense: Long,
-) {
+private fun MonthlySummaryCard(expense: Long, previousExpense: Long) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -230,11 +227,7 @@ private fun MonthlySummaryCard(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(
-                text = "이번 달 지출",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text("이번 달 지출", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
                 text = formatHomeMoney(expense),
                 style = MaterialTheme.typography.displaySmall,
@@ -248,11 +241,7 @@ private fun MonthlySummaryCard(
                     difference < 0 -> "지난달보다 ${formatHomeMoney(-difference)} 더 사용했어요"
                     else -> "지난달과 같은 금액을 사용했어요"
                 }
-                Text(
-                    text = comparisonText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Text(comparisonText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -275,68 +264,36 @@ private fun SummaryMetric(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = valueColor,
-            )
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = valueColor)
         }
     }
 }
 
 @Composable
-private fun AttentionRow(
-    count: String,
-    type: StatusChipType,
-    onClick: () -> Unit,
-) {
+private fun AttentionRow(count: String, type: StatusChipType, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StatusChip(type)
-        Text(
-            text = count,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Text(count, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
 @Composable
 private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onBackground,
-    )
+    Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
 }
 
 @Composable
 private fun EmptyMessage(message: String) {
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
