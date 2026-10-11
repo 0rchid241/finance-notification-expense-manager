@@ -67,6 +67,7 @@ fun TransactionRow(
 
                 val hasStatus = consistency?.duplicateCandidate == true ||
                     consistency?.internalTransferCandidate == true ||
+                    consistency?.refundCandidate == true ||
                     ruleMatches.isNotEmpty()
 
                 if (hasStatus) {
@@ -76,6 +77,9 @@ fun TransactionRow(
                         }
                         if (consistency?.internalTransferCandidate == true) {
                             StatusChip(StatusChipType.INTERNAL_TRANSFER)
+                        }
+                        if (consistency?.refundCandidate == true) {
+                            StatusChip(StatusChipType.REFUND)
                         }
                         if (ruleMatches.isNotEmpty()) {
                             StatusChip(StatusChipType.RULE_WARNING)
