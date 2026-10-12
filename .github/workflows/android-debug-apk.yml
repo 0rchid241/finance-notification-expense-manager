@@ -1,0 +1,78 @@
+name: Android External Test APK
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-debug-apk.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-debug-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      FIREBASE_TESTERS: ${{ secrets.FIREBASE_TESTERS }}
+
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest
+
+      - name: Build external test APK
+        run: ./gradlew assembleExternalDebug
+
+      - name: Upload external test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: finance-notification-manager-external-dev
+          path: android/app/build/outputs/apk/externalDebug/app-externalDebug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Prepare Firebase service account
+        if: ${{ github.event_name != 'pull_request' && env.FIREBASE_APP_ID != '' && env.FIREBASE_SERVICE_ACCOUNT_JSON != '' && env.FIREBASE_TESTERS != '' }}
+        run: printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > firebase-service-account.json
+
+      - name: Install Firebase CLI
+        if: ${{ github.event_name != 'pull_request' && env.FIREBASE_APP_ID != '' && env.FIREBASE_SERVICE_ACCOUNT_JSON != '' && env.FIREBASE_TESTERS != '' }}
+        run: npm install --global firebase-tools
+
+      - name: Distribute external test APK with Firebase
+        if: ${{ github.event_name != 'pull_request' && env.FIREBASE_APP_ID != '' && env.FIREBASE_SERVICE_ACCOUNT_JSON != '' && env.FIREBASE_TESTERS != '' }}
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/android/firebase-service-account.json
+        run: >-
+          firebase appdistribution:distribute
+          app/build/outputs/apk/externalDebug/app-externalDebug.apk
+          --app "$FIREBASE_APP_ID"
+          --testers "$FIREBASE_TESTERS"
+          --release-notes "${GITHUB_REF_NAME} · ${GITHUB_SHA::7}"

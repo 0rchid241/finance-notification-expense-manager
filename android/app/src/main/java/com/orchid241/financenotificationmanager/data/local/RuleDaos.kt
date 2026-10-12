@@ -16,10 +16,18 @@ interface UserRuleDao {
 
     @Query("SELECT * FROM user_rules WHERE enabled = 1 ORDER BY createdAt ASC, id ASC")
     suspend fun getEnabled(): List<UserRuleEntity>
+
+    @Query("UPDATE user_rules SET enabled = :enabled WHERE id = :ruleId")
+    suspend fun setEnabled(ruleId: Long, enabled: Boolean)
+
+    @Query("DELETE FROM user_rules WHERE id = :ruleId")
+    suspend fun deleteById(ruleId: Long)
 }
 
 @Dao
 interface RuleMatchDao {
+    @Query("DELETE FROM rule_matches WHERE transactionId = :id")
+    suspend fun deleteForTransaction(id: Long)
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(match: RuleMatchEntity): Long
 

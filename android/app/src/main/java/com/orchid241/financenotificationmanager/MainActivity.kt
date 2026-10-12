@@ -4,8 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -14,11 +24,20 @@ import com.orchid241.financenotificationmanager.data.local.AppDatabase
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
 import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
 import com.orchid241.financenotificationmanager.data.local.UserRuleEntity
+import com.orchid241.financenotificationmanager.data.local.ConsistencyCandidateEntity
+import com.orchid241.financenotificationmanager.ui.AppBottomBar
+import com.orchid241.financenotificationmanager.ui.AppTab
+import com.orchid241.financenotificationmanager.ui.AddTransactionScreen
+import com.orchid241.financenotificationmanager.ui.HomeScreen
+import com.orchid241.financenotificationmanager.ui.RulesScreen
+import com.orchid241.financenotificationmanager.ui.SettingsScreen
 import com.orchid241.financenotificationmanager.ui.TransactionConsistencyUiState
-import com.orchid241.financenotificationmanager.ui.TransactionListScreen
+import com.orchid241.financenotificationmanager.ui.TransactionFilter
+import com.orchid241.financenotificationmanager.ui.TransactionsScreen
 import com.orchid241.financenotificationmanager.ui.consistencyByTransaction
 import com.orchid241.financenotificationmanager.ui.theme.FinanceNotificationManagerTheme
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -38,11 +57,21 @@ class MainActivity : ComponentActivity() {
                             repository.observeUserRules(),
                             repository.observeRuleMatches(),
                         ) { transactions, candidates, rules, matches ->
+                            val enabledRuleIds = rules
+                                .asSequence()
+                                .filter(UserRuleEntity::enabled)
+                                .map(UserRuleEntity::id)
+                                .toSet()
+                            val visibleMatches = matches
+                                .filter { it.ruleId in enabledRuleIds }
+                                .groupBy(RuleMatchEntity::transactionId)
+
                             TransactionListState(
                                 transactions = transactions,
                                 consistency = consistencyByTransaction(candidates),
+                                candidates = candidates,
                                 rules = rules,
-                                ruleMatches = matches.groupBy(RuleMatchEntity::transactionId),
+                                ruleMatches = visibleMatches,
                                 loading = false,
                             )
                         }.collect { value = it }
@@ -53,33 +82,154 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            FinanceNotificationManagerTheme {
-                TransactionListScreen(
-                    transactions = state.transactions,
-                    consistency = state.consistency,
-                    rules = state.rules,
-                    ruleMatches = state.ruleMatches,
-                    loading = state.loading,
-                    failed = state.failed,
-                    onAddAmountRule = { threshold ->
-                        lifecycleScope.launch {
-                            repository.addAmountRule(
-                                name = "큰 지출",
-                                amountThreshold = threshold,
-                                message = "설정한 금액 이상의 지출이 발생했어요.",
+
+            val preferences = remember { getSharedPreferences("app_settings", MODE_PRIVATE) }
+            var darkMode by remember { mutableStateOf(preferences.getBoolean("dark_mode", false)) }
+            var selectedTab by rememberSaveable { mutableStateOf(AppTab.HOME) }
+            var transactionFilter by rememberSaveable { mutableStateOf(TransactionFilter.ALL) }
+            var selectedTransactionId by rememberSaveable { mutableStateOf<Long?>(null) }
+            var addingTransaction by rememberSaveable { mutableStateOf(false) }
+            var editingTransactionId by rememberSaveable { mutableStateOf<Long?>(null) }
+            val editingTransaction = state.transactions.firstOrNull { it.id == editingTransactionId }
+            var transactionMonthAnchor by rememberSaveable { mutableStateOf<Long?>(null) }
+            val transactionScreenState = rememberSaveableStateHolder()
+
+            // 홈에서는 콜백을 등록하지 않아 Android의 기본 종료 동작을 유지한다.
+            BackHandler(enabled = selectedTab != AppTab.HOME) {
+                when {
+                    editingTransactionId != null -> editingTransactionId = null
+                    selectedTransactionId != null -> selectedTransactionId = null
+                    addingTransaction -> addingTransaction = false
+                    else -> selectedTab = AppTab.HOME
+                }
+            }
+
+            FinanceNotificationManagerTheme(darkTheme = darkMode) {
+                Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    bottomBar = {
+                        AppBottomBar(
+                            selectedTab = selectedTab,
+                            onTabSelected = { tab ->
+                                selectedTab = tab
+                                selectedTransactionId = null
+                                addingTransaction = false
+                                editingTransactionId = null
+                            },
+                        )
+                    },
+                ) { innerPadding ->
+                    val screenModifier = Modifier.padding(innerPadding)
+                    when (selectedTab) {
+                        AppTab.HOME -> HomeScreen(
+                            transactions = state.transactions,
+                            consistency = state.consistency,
+                            ruleMatches = state.ruleMatches,
+                            loading = state.loading,
+                            failed = state.failed,
+                            onViewTransactions = { filter ->
+                                transactionFilter = filter
+                                selectedTransactionId = null
+                                selectedTab = AppTab.TRANSACTIONS
+                                transactionMonthAnchor = null
+                            },
+                            onViewTransactionDetail = { transactionId ->
+                                selectedTransactionId = transactionId
+                                selectedTab = AppTab.TRANSACTIONS
+                            },
+                            modifier = screenModifier,
+                            candidates = state.candidates,
+                        )
+
+                        AppTab.TRANSACTIONS -> if (editingTransaction != null) AddTransactionScreen(
+                            onBack = { editingTransactionId = null },
+                            onSave = { repository.updateTransaction(editingTransaction.id, it) },
+                            onSaved = { occurredAt ->
+                                transactionScreenState.removeState("transactions")
+                                transactionMonthAnchor = occurredAt
+                                editingTransactionId = null
+                            },
+                            modifier = screenModifier,
+                            initialTransaction = editingTransaction,
+                        ) else if (addingTransaction) AddTransactionScreen(
+                            onBack = { addingTransaction = false },
+                            onSave = { repository.addManualTransaction(it) },
+                            onSaved = { occurredAt ->
+                                transactionScreenState.removeState("transactions")
+                                transactionMonthAnchor = occurredAt
+                                transactionFilter = TransactionFilter.ALL
+                                addingTransaction = false
+                            },
+                            modifier = screenModifier,
+                        ) else transactionScreenState.SaveableStateProvider("transactions") {
+                            TransactionsScreen(
+                                transactions = state.transactions,
+                                consistency = state.consistency,
+                                ruleMatches = state.ruleMatches,
+                                loading = state.loading,
+                                failed = state.failed,
+                                selectedFilter = transactionFilter,
+                                onFilterSelected = { transactionFilter = it },
+                                selectedTransactionId = selectedTransactionId,
+                                onTransactionSelected = { selectedTransactionId = it },
+                                onDetailBack = { selectedTransactionId = null },
+                                modifier = screenModifier,
+                                onAddTransaction = { addingTransaction = true },
+                                monthAnchor = transactionMonthAnchor,
+                                candidates = state.candidates,
+                                onEditTransaction = { editingTransactionId = selectedTransactionId },
+                                onDeleteTransaction = { repository.deleteTransaction(it) },
+                                onDeleted = { selectedTransactionId = null },
+                                onReviewCandidate = { id, confirmed -> repository.reviewCandidate(id, confirmed) },
                             )
                         }
-                    },
-                    onAddCounterpartyRule = { keyword ->
-                        lifecycleScope.launch {
-                            repository.addCounterpartyRule(
-                                name = "상대방 알림",
-                                keyword = keyword,
-                                message = "설정한 상대방과의 거래가 발생했어요.",
-                            )
-                        }
-                    },
-                )
+
+                        AppTab.RULES -> RulesScreen(
+                            rules = state.rules,
+                            onAddAmountRule = { threshold ->
+                                lifecycleScope.launch {
+                                    repository.addAmountRule(
+                                        name = "큰 지출",
+                                        amountThreshold = threshold,
+                                        message = "설정한 금액 이상의 지출이 발생했어요.",
+                                    )
+                                }
+                            },
+                            onAddCounterpartyRule = { keyword ->
+                                lifecycleScope.launch {
+                                    repository.addCounterpartyRule(
+                                        name = "상대방 알림",
+                                        keyword = keyword,
+                                        message = "설정한 상대방과의 거래가 발생했어요.",
+                                    )
+                                }
+                            },
+                            onToggleRule = { ruleId, enabled ->
+                                lifecycleScope.launch { repository.setRuleEnabled(ruleId, enabled) }
+                            },
+                            onDeleteRule = { ruleId ->
+                                lifecycleScope.launch { repository.deleteRule(ruleId) }
+                            },
+                            modifier = screenModifier,
+                        )
+
+                        AppTab.SETTINGS -> SettingsScreen(
+                            darkMode = darkMode,
+                            onDarkModeChanged = { enabled ->
+                                darkMode = enabled
+                                preferences.edit().putBoolean("dark_mode", enabled).apply()
+                            },
+                            onResetData = {
+                                lifecycleScope.launch(Dispatchers.IO) { repository.clearAllData() }
+                            },
+                            showDeveloperTools = BuildConfig.DEBUG,
+                            onAddRefundDemoData = {
+                                lifecycleScope.launch(Dispatchers.IO) { repository.addRefundDemoData() }
+                            },
+                            modifier = screenModifier,
+                        )
+                    }
+                }
             }
         }
     }
@@ -88,6 +238,7 @@ class MainActivity : ComponentActivity() {
 private data class TransactionListState(
     val transactions: List<FinancialTransactionEntity> = emptyList(),
     val consistency: Map<Long, TransactionConsistencyUiState> = emptyMap(),
+    val candidates: List<ConsistencyCandidateEntity> = emptyList(),
     val rules: List<UserRuleEntity> = emptyList(),
     val ruleMatches: Map<Long, List<RuleMatchEntity>> = emptyMap(),
     val loading: Boolean = true,

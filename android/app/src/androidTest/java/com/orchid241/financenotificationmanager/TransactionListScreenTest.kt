@@ -2,17 +2,27 @@ package com.orchid241.financenotificationmanager
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
 import com.orchid241.financenotificationmanager.parser.TransactionType
 import com.orchid241.financenotificationmanager.ui.TransactionListScreen
 import com.orchid241.financenotificationmanager.ui.theme.FinanceNotificationManagerTheme
+import android.view.WindowManager
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
 class TransactionListScreenTest {
-    @get:Rule val compose = createComposeRule()
+    @Before fun keepScreenOn() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            compose.activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test fun emptyStateExplainsNotificationAccess() {
         compose.setContent { FinanceNotificationManagerTheme { TransactionListScreen(emptyList()) } }
