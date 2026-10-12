@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.orchid241.financenotificationmanager.data.ManualTransactionInput
 import com.orchid241.financenotificationmanager.data.manualTransactionInput
+import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
 import com.orchid241.financenotificationmanager.parser.TransactionType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -30,13 +31,14 @@ fun AddTransactionScreen(
     onSave: suspend (ManualTransactionInput) -> Unit,
     onSaved: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    initialTransaction: FinancialTransactionEntity? = null,
 ) {
-    var occurredAt by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
-    var type by rememberSaveable { mutableStateOf(TransactionType.WITHDRAWAL) }
-    var amount by rememberSaveable { mutableStateOf("") }
-    var counterparty by rememberSaveable { mutableStateOf("") }
-    var account by rememberSaveable { mutableStateOf("") }
-    var balance by rememberSaveable { mutableStateOf("") }
+    var occurredAt by rememberSaveable(initialTransaction?.id) { mutableLongStateOf(initialTransaction?.occurredAt ?: System.currentTimeMillis()) }
+    var type by rememberSaveable(initialTransaction?.id) { mutableStateOf(initialTransaction?.transactionType ?: TransactionType.WITHDRAWAL) }
+    var amount by rememberSaveable(initialTransaction?.id) { mutableStateOf(initialTransaction?.amount?.toString().orEmpty()) }
+    var counterparty by rememberSaveable(initialTransaction?.id) { mutableStateOf(initialTransaction?.counterparty.orEmpty()) }
+    var account by rememberSaveable(initialTransaction?.id) { mutableStateOf(initialTransaction?.accountLast4.orEmpty()) }
+    var balance by rememberSaveable(initialTransaction?.id) { mutableStateOf(initialTransaction?.balance?.toString().orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -48,9 +50,9 @@ fun AddTransactionScreen(
     ) {
         Row {
             TextButton(onClick = onBack, enabled = !saving) { Text("뒤로") }
-            Text("거래 추가", modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(if (initialTransaction == null) "거래 추가" else "거래 수정", modifier = Modifier.padding(top = 8.dp), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         }
-        Text("직접 입력한 거래도 정합성 확인과 사용자 규칙이 적용돼요.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (initialTransaction == null) "직접 입력한 거래도 정합성 확인과 사용자 규칙이 적용돼요." else "수정하면 후보와 규칙을 다시 확인해요. 원본 알림은 그대로 남습니다.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(enabled = !saving, onClick = {
                 val date = Calendar.getInstance().apply { timeInMillis = occurredAt }

@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         UserRuleEntity::class,
         RuleMatchEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(
@@ -155,6 +155,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE consistency_candidates ADD COLUMN reviewStatus TEXT NOT NULL DEFAULT 'PENDING'")
+                db.execSQL("ALTER TABLE consistency_candidates ADD COLUMN isActive INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE consistency_candidates ADD COLUMN reviewedAt INTEGER DEFAULT NULL")
+            }
+        }
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -164,7 +172,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "finance_notification_manager.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build().also { instance = it }
             }
     }
 }

@@ -17,17 +17,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
 import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
+import com.orchid241.financenotificationmanager.data.local.ConsistencyCandidateEntity
+import com.orchid241.financenotificationmanager.data.local.CandidateReviewStatus
+import com.orchid241.financenotificationmanager.consistency.ConsistencyRelationType
+import com.orchid241.financenotificationmanager.data.monthlyTotals
 import com.orchid241.financenotificationmanager.parser.TransactionType
 import com.orchid241.financenotificationmanager.ui.theme.FinanceStatusColors
 import java.text.NumberFormat
@@ -35,6 +44,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 enum class TransactionFilter(val label: String) {
     ALL("전체"),
@@ -58,6 +69,11 @@ fun TransactionsScreen(
     modifier: Modifier = Modifier,
     onAddTransaction: () -> Unit = {},
     monthAnchor: Long? = null,
+    candidates: List<ConsistencyCandidateEntity> = emptyList(),
+    onEditTransaction: () -> Unit = {},
+    onDeleteTransaction: suspend (Long) -> Unit = {},
+    onDeleted: () -> Unit = {},
+    onReviewCandidate: suspend (Long, Boolean) -> Unit = { _, _ -> },
 ) {
     val now = Calendar.getInstance()
     val selectedMonth = Calendar.getInstance().apply { timeInMillis = monthAnchor ?: now.timeInMillis }
@@ -72,14 +88,19 @@ fun TransactionsScreen(
             ruleMatches = ruleMatches[selectedTransaction.id].orEmpty(),
             onBack = onDetailBack,
             modifier = modifier,
+            candidates = candidates,
+            transactions = transactions,
+            onEdit = onEditTransaction,
+            onDelete = onDeleteTransaction,
+            onDeleted = onDeleted,
+            onReview = onReviewCandidate,
         )
         return
     }
 
     val range = monthRange(monthOffset)
     val monthTransactions = transactions.filter { it.occurredAt in range }
-    val expense = monthTransactions.filter { it.transactionType != TransactionType.DEPOSIT }.sumOf { it.amount }
-    val income = monthTransactions.filter { it.transactionType == TransactionType.DEPOSIT }.sumOf { it.amount }
+    val totals = monthlyTotals(transactions, candidates, range)
     val filtered = monthTransactions.filter { transaction ->
         when (selectedFilter) {
             TransactionFilter.ALL -> true
@@ -90,6 +111,7 @@ fun TransactionsScreen(
                 state?.duplicateCandidate == true ||
                     state?.internalTransferCandidate == true ||
                     state?.refundCandidate == true ||
+                    state?.needsReview == true ||
                     ruleMatches[transaction.id].orEmpty().isNotEmpty()
             }
         }
@@ -140,13 +162,7 @@ fun TransactionsScreen(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(18.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    AmountSummary("지출", transactionMoney(expense), FinanceStatusColors.Outflow)
-                    AmountSummary("입금", transactionMoney(income), FinanceStatusColors.Inflow)
-                }
+                MonthlyTotalsContent(totals, modifier = Modifier.padding(18.dp))
             }
         }
 
@@ -195,12 +211,43 @@ private fun TransactionDetailScreen(
     ruleMatches: List<RuleMatchEntity>,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    candidates: List<ConsistencyCandidateEntity> = emptyList(),
+    transactions: List<FinancialTransactionEntity> = emptyList(),
+    onEdit: () -> Unit = {},
+    onDelete: suspend (Long) -> Unit = {},
+    onDeleted: () -> Unit = {},
+    onReview: suspend (Long, Boolean) -> Unit = { _, _ -> },
 ) {
     val deposit = transaction.transactionType == TransactionType.DEPOSIT
     val amountColor = if (deposit) FinanceStatusColors.Inflow else FinanceStatusColors.Outflow
+    var confirmDelete by rememberSaveable(transaction.id) { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    fun performAction(action: suspend () -> Unit) {
+        if (busy) return
+        busy = true
+        error = null
+        scope.launch {
+            try { action() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: IllegalArgumentException) { error = failure.message }
+            catch (_: Exception) { error = "처리하지 못했어요. 다시 시도해 주세요." }
+            finally { busy = false }
+        }
+    }
+    if (confirmDelete) AlertDialog(
+        onDismissRequest = { if (!busy) confirmDelete = false },
+        title = { Text("거래를 삭제할까요?") },
+        text = { Text(error ?: "연결된 후보와 규칙 결과도 정리됩니다. 원본 금융 알림은 보존됩니다.") },
+        confirmButton = { TextButton(enabled = !busy, onClick = {
+            performAction { onDelete(transaction.id); confirmDelete = false; onDeleted() }
+        }) { Text("삭제") } },
+        dismissButton = { TextButton(enabled = !busy, onClick = { confirmDelete = false }) { Text("취소") } },
+    )
 
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().testTag("transaction-detail"),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
@@ -213,6 +260,14 @@ private fun TransactionDetailScreen(
                 )
                 Text("거래 상세", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(enabled = !busy, onClick = onEdit) { Text("수정") }
+                TextButton(enabled = !busy, onClick = { confirmDelete = true }) { Text("삭제") }
+            }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
 
         item {
@@ -241,26 +296,61 @@ private fun TransactionDetailScreen(
                         if (consistency?.internalTransferCandidate == true) StatusChip(StatusChipType.INTERNAL_TRANSFER)
                         if (consistency?.refundCandidate == true) StatusChip(StatusChipType.REFUND)
                         if (ruleMatches.isNotEmpty()) StatusChip(StatusChipType.RULE_WARNING)
+                        if (consistency?.confirmedDuplicate == true) StatusChip(StatusChipType.CONFIRMED_DUPLICATE)
+                        if (consistency?.confirmedRefund == true) StatusChip(StatusChipType.CONFIRMED_REFUND)
+                        if (consistency?.confirmedTransfer == true) StatusChip(StatusChipType.CONFIRMED_TRANSFER)
+                        if (consistency?.needsReview == true) StatusChip(StatusChipType.NEEDS_REVIEW)
                     }
                 }
             }
         }
 
-        if (consistency?.refundCandidate == true) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("취소/환불 후보", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "같은 계좌에서 같은 상대방·금액의 출금 후 입금 거래가 확인됐어요. 자동 확정하지 않고 확인이 필요한 후보로 표시합니다.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+        val relations = candidates.filter {
+            (it.firstTransactionId == transaction.id || it.secondTransactionId == transaction.id) &&
+                it.reviewStatus != CandidateReviewStatus.REJECTED && (it.isActive || it.reviewStatus == CandidateReviewStatus.NEEDS_REVIEW)
+        }
+        items(relations, key = { "relation-${it.id}" }) { relation ->
+            val label = when (relation.relationType) {
+                ConsistencyRelationType.DUPLICATE_CANDIDATE -> "중복"
+                ConsistencyRelationType.REFUND_CANDIDATE -> "환불"
+                ConsistencyRelationType.INTERNAL_TRANSFER_CANDIDATE -> "내부이체"
+            }
+            val otherId = if (relation.firstTransactionId == transaction.id) relation.secondTransactionId else relation.firstTransactionId
+            val other = transactions.firstOrNull { it.id == otherId }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(when (relation.reviewStatus) {
+                    CandidateReviewStatus.CONFIRMED -> "확정된 $label"
+                    CandidateReviewStatus.NEEDS_REVIEW -> "$label 재확인 필요"
+                    else -> "$label 후보"
+                }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                other?.let {
+                    Text("연결 거래: ${it.counterparty} · ${it.transactionType.label} ${transactionMoney(it.amount)}", style = MaterialTheme.typography.bodyMedium)
+                    Text(SimpleDateFormat("M월 d일 HH:mm", Locale.KOREA).format(Date(it.occurredAt)), style = MaterialTheme.typography.bodySmall)
+                }
+                if (relation.isActive && relation.relationType == ConsistencyRelationType.DUPLICATE_CANDIDATE) {
+                    val excludedHere = transaction.id == maxOf(relation.firstTransactionId, relation.secondTransactionId)
+                    Text(
+                        if (relation.reviewStatus == CandidateReviewStatus.CONFIRMED) {
+                            if (excludedHere) "이 거래는 집계에서 제외됩니다." else "연결 거래가 집계에서 제외됩니다."
+                        } else {
+                            if (excludedHere) "확정하면 이 거래가 집계에서 제외됩니다." else "확정하면 연결 거래가 집계에서 제외됩니다."
+                        }, style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (relation.relationType == ConsistencyRelationType.REFUND_CANDIDATE) Text("환불 확정 금액은 입금 발생 월의 순지출에서 차감합니다.", style = MaterialTheme.typography.bodySmall)
+                if (relation.relationType == ConsistencyRelationType.INTERNAL_TRANSFER_CANDIDATE) Text("내부이체는 관계만 확정하며 순지출을 조정하지 않습니다.", style = MaterialTheme.typography.bodySmall)
+                if (!relation.isActive) Text("수정 후 현재 거래 내용은 후보 조건에 맞지 않아요. 기존 확정은 집계에 반영하지 않습니다.", style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (relation.isActive && relation.reviewStatus != CandidateReviewStatus.CONFIRMED) {
+                        TextButton(enabled = !busy, onClick = { performAction { onReview(relation.id, true) } }) {
+                            Text(when (relation.relationType) {
+                                ConsistencyRelationType.DUPLICATE_CANDIDATE -> "중복으로 확정"
+                                ConsistencyRelationType.REFUND_CANDIDATE -> "환불로 확정"
+                                ConsistencyRelationType.INTERNAL_TRANSFER_CANDIDATE -> "내부이체로 확정"
+                            })
+                        }
                     }
+                    TextButton(enabled = !busy, onClick = { performAction { onReview(relation.id, false) } }) { Text("후보 아님") }
                 }
             }
         }

@@ -4,14 +4,23 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertFalse
+import android.view.WindowManager
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
 /** 화면 이동만 확인하며 실제 사용자 DB에는 거래를 추가하거나 삭제하지 않는다. */
 class SystemBackTest {
+    @Before fun keepScreenOn() {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            compose.activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
     private fun pressSystemBack() {
+        compose.waitForIdle()
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             compose.activity.onBackPressedDispatcher.onBackPressed()
         }
@@ -21,6 +30,7 @@ class SystemBackTest {
     @Test fun transactionRuleAndSettingsTabsReturnHome() {
         for (tab in listOf("거래", "규칙", "설정")) {
             compose.onNode(hasText(tab) and hasClickAction()).performClick()
+            compose.onNode(hasText(tab) and hasClickAction()).assertIsSelected()
             pressSystemBack()
             compose.onNode(hasText("홈") and hasClickAction()).assertIsSelected()
         }

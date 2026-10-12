@@ -22,6 +22,7 @@ class ManualTransactionMigrationTest {
     @Test fun versionTwoPreservesTransactions() = verifyMigration(2)
     @Test fun versionThreePreservesCandidates() = verifyMigration(3)
     @Test fun versionFourPreservesAllLinkedDataAndAutoincrement() = verifyMigration(4)
+    @Test fun versionFiveAddsPendingReviewWithoutChangingLinkedData() = verifyMigration(5)
 
     private fun verifyMigration(version: Int) = runBlocking {
         val context = RuntimeEnvironment.getApplication()
@@ -56,7 +57,7 @@ class ManualTransactionMigrationTest {
             old.version = version
         }
         fun open() = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5).build()
+            .addMigrations(AppDatabase.MIGRATION_1_2, AppDatabase.MIGRATION_2_3, AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6).build()
         val migrated = open()
         try {
             assertEquals(RawNotificationEntity(11, "기존 키", "com.example.bank", "출금", "예전 원문", 100, 101, "PROCESSED"), migrated.rawNotificationDao().getAll().single())

@@ -5,6 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
+import androidx.room.ColumnInfo
 import com.orchid241.financenotificationmanager.consistency.ConsistencyRelationType
 
 @Entity(
@@ -39,9 +40,16 @@ data class ConsistencyCandidateEntity(
     val relationType: ConsistencyRelationType,
     val reasonText: String,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "'PENDING'") val reviewStatus: CandidateReviewStatus = CandidateReviewStatus.PENDING,
+    @ColumnInfo(defaultValue = "1") val isActive: Boolean = true,
+    @ColumnInfo(defaultValue = "NULL") val reviewedAt: Long? = null,
 )
 
+enum class CandidateReviewStatus { PENDING, CONFIRMED, REJECTED, NEEDS_REVIEW }
+
 class ConsistencyRelationTypeConverters {
+    @TypeConverter fun encodeReview(value: CandidateReviewStatus): String = value.name
+    @TypeConverter fun decodeReview(value: String): CandidateReviewStatus = CandidateReviewStatus.valueOf(value)
     @TypeConverter
     fun encode(value: ConsistencyRelationType): String = value.name
 

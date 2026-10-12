@@ -68,6 +68,8 @@ fun TransactionRow(
                 val hasStatus = consistency?.duplicateCandidate == true ||
                     consistency?.internalTransferCandidate == true ||
                     consistency?.refundCandidate == true ||
+                    consistency?.confirmedDuplicate == true || consistency?.confirmedRefund == true ||
+                    consistency?.confirmedTransfer == true || consistency?.needsReview == true ||
                     ruleMatches.isNotEmpty()
 
                 if (hasStatus) {
@@ -84,6 +86,10 @@ fun TransactionRow(
                         if (ruleMatches.isNotEmpty()) {
                             StatusChip(StatusChipType.RULE_WARNING)
                         }
+                        if (consistency?.confirmedDuplicate == true) StatusChip(StatusChipType.CONFIRMED_DUPLICATE)
+                        if (consistency?.confirmedRefund == true) StatusChip(StatusChipType.CONFIRMED_REFUND)
+                        if (consistency?.confirmedTransfer == true) StatusChip(StatusChipType.CONFIRMED_TRANSFER)
+                        if (consistency?.needsReview == true) StatusChip(StatusChipType.NEEDS_REVIEW)
                     }
                 }
             }

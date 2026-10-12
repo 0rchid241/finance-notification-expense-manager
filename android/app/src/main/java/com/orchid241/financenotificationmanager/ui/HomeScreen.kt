@@ -25,6 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
 import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
+import com.orchid241.financenotificationmanager.data.local.ConsistencyCandidateEntity
+import com.orchid241.financenotificationmanager.data.MonthlyTotals
+import com.orchid241.financenotificationmanager.data.monthlyTotals
 import com.orchid241.financenotificationmanager.parser.TransactionType
 import com.orchid241.financenotificationmanager.ui.theme.FinanceStatusColors
 import java.text.NumberFormat
@@ -42,21 +45,15 @@ fun HomeScreen(
     onViewTransactions: (TransactionFilter) -> Unit = {},
     onViewTransactionDetail: (Long) -> Unit = {},
     modifier: Modifier = Modifier,
+    candidates: List<ConsistencyCandidateEntity> = emptyList(),
 ) {
     val monthRange = currentMonthRange()
     val previousMonthRange = previousMonthRange()
     val monthTransactions = transactions.filter { it.occurredAt in monthRange }
-    val previousMonthTransactions = transactions.filter { it.occurredAt in previousMonthRange }
-
-    val expense = monthTransactions
-        .filter { it.transactionType != TransactionType.DEPOSIT }
-        .sumOf { it.amount }
-    val income = monthTransactions
-        .filter { it.transactionType == TransactionType.DEPOSIT }
-        .sumOf { it.amount }
-    val previousExpense = previousMonthTransactions
-        .filter { it.transactionType != TransactionType.DEPOSIT }
-        .sumOf { it.amount }
+    val totals = monthlyTotals(transactions, candidates, monthRange)
+    val expense = totals.netExpense
+    val income = totals.reflectedDeposit
+    val previousExpense = monthlyTotals(transactions, candidates, previousMonthRange).netExpense
 
     val attentionIds = monthTransactions
         .filter { transaction ->
@@ -64,6 +61,7 @@ fun HomeScreen(
             state?.duplicateCandidate == true ||
                 state?.internalTransferCandidate == true ||
                 state?.refundCandidate == true ||
+                state?.needsReview == true ||
                 ruleMatches[transaction.id].orEmpty().isNotEmpty()
         }
         .map { it.id }
@@ -98,7 +96,7 @@ fun HomeScreen(
 
         item {
             MonthlySummaryCard(
-                expense = expense,
+                totals = totals,
                 previousExpense = previousExpense,
             )
         }
@@ -109,14 +107,14 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 SummaryMetric(
-                    label = "지출",
+                    label = "순지출",
                     value = formatHomeMoney(expense),
                     valueColor = FinanceStatusColors.Outflow,
                     onClick = { onViewTransactions(TransactionFilter.EXPENSE) },
                     modifier = Modifier.weight(1f),
                 )
                 SummaryMetric(
-                    label = "입금",
+                    label = "반영 입금",
                     value = formatHomeMoney(income),
                     valueColor = FinanceStatusColors.Inflow,
                     onClick = { onViewTransactions(TransactionFilter.INCOME) },
@@ -217,7 +215,8 @@ fun HomeScreen(
 }
 
 @Composable
-private fun MonthlySummaryCard(expense: Long, previousExpense: Long) {
+private fun MonthlySummaryCard(totals: MonthlyTotals, previousExpense: Long) {
+    val expense = totals.netExpense
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -227,13 +226,7 @@ private fun MonthlySummaryCard(expense: Long, previousExpense: Long) {
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("이번 달 지출", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                text = formatHomeMoney(expense),
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+            MonthlyTotalsContent(totals)
             if (previousExpense > 0) {
                 val difference = previousExpense - expense
                 val comparisonText = when {

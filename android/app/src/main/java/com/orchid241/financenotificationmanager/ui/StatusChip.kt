@@ -19,6 +19,10 @@ enum class StatusChipType(
     INTERNAL_TRANSFER("내부이체 후보"),
     REFUND("취소/환불 후보"),
     RULE_WARNING("규칙 경고"),
+    CONFIRMED_DUPLICATE("확정된 중복"),
+    CONFIRMED_REFUND("확정된 환불"),
+    CONFIRMED_TRANSFER("확정된 내부이체"),
+    NEEDS_REVIEW("재확인 필요"),
 }
 
 @Composable
@@ -31,6 +35,8 @@ fun StatusChip(
         StatusChipType.INTERNAL_TRANSFER -> FinanceStatusColors.InternalTransfer
         StatusChipType.REFUND -> FinanceStatusColors.Success
         StatusChipType.RULE_WARNING -> FinanceStatusColors.Warning
+        StatusChipType.CONFIRMED_DUPLICATE, StatusChipType.CONFIRMED_REFUND, StatusChipType.CONFIRMED_TRANSFER -> FinanceStatusColors.Success
+        StatusChipType.NEEDS_REVIEW -> FinanceStatusColors.Warning
     }
 
     Surface(

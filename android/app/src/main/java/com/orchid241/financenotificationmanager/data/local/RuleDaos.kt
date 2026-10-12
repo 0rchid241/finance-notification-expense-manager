@@ -26,6 +26,8 @@ interface UserRuleDao {
 
 @Dao
 interface RuleMatchDao {
+    @Query("DELETE FROM rule_matches WHERE transactionId = :id")
+    suspend fun deleteForTransaction(id: Long)
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(match: RuleMatchEntity): Long
 

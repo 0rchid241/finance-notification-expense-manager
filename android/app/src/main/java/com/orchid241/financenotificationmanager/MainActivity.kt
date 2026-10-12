@@ -24,6 +24,7 @@ import com.orchid241.financenotificationmanager.data.local.AppDatabase
 import com.orchid241.financenotificationmanager.data.local.FinancialTransactionEntity
 import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
 import com.orchid241.financenotificationmanager.data.local.UserRuleEntity
+import com.orchid241.financenotificationmanager.data.local.ConsistencyCandidateEntity
 import com.orchid241.financenotificationmanager.ui.AppBottomBar
 import com.orchid241.financenotificationmanager.ui.AppTab
 import com.orchid241.financenotificationmanager.ui.AddTransactionScreen
@@ -68,6 +69,7 @@ class MainActivity : ComponentActivity() {
                             TransactionListState(
                                 transactions = transactions,
                                 consistency = consistencyByTransaction(candidates),
+                                candidates = candidates,
                                 rules = rules,
                                 ruleMatches = visibleMatches,
                                 loading = false,
@@ -87,12 +89,15 @@ class MainActivity : ComponentActivity() {
             var transactionFilter by rememberSaveable { mutableStateOf(TransactionFilter.ALL) }
             var selectedTransactionId by rememberSaveable { mutableStateOf<Long?>(null) }
             var addingTransaction by rememberSaveable { mutableStateOf(false) }
+            var editingTransactionId by rememberSaveable { mutableStateOf<Long?>(null) }
+            val editingTransaction = state.transactions.firstOrNull { it.id == editingTransactionId }
             var transactionMonthAnchor by rememberSaveable { mutableStateOf<Long?>(null) }
             val transactionScreenState = rememberSaveableStateHolder()
 
             // 홈에서는 콜백을 등록하지 않아 Android의 기본 종료 동작을 유지한다.
             BackHandler(enabled = selectedTab != AppTab.HOME) {
                 when {
+                    editingTransactionId != null -> editingTransactionId = null
                     selectedTransactionId != null -> selectedTransactionId = null
                     addingTransaction -> addingTransaction = false
                     else -> selectedTab = AppTab.HOME
@@ -109,6 +114,7 @@ class MainActivity : ComponentActivity() {
                                 selectedTab = tab
                                 selectedTransactionId = null
                                 addingTransaction = false
+                                editingTransactionId = null
                             },
                         )
                     },
@@ -132,9 +138,20 @@ class MainActivity : ComponentActivity() {
                                 selectedTab = AppTab.TRANSACTIONS
                             },
                             modifier = screenModifier,
+                            candidates = state.candidates,
                         )
 
-                        AppTab.TRANSACTIONS -> if (addingTransaction) AddTransactionScreen(
+                        AppTab.TRANSACTIONS -> if (editingTransaction != null) AddTransactionScreen(
+                            onBack = { editingTransactionId = null },
+                            onSave = { repository.updateTransaction(editingTransaction.id, it) },
+                            onSaved = { occurredAt ->
+                                transactionScreenState.removeState("transactions")
+                                transactionMonthAnchor = occurredAt
+                                editingTransactionId = null
+                            },
+                            modifier = screenModifier,
+                            initialTransaction = editingTransaction,
+                        ) else if (addingTransaction) AddTransactionScreen(
                             onBack = { addingTransaction = false },
                             onSave = { repository.addManualTransaction(it) },
                             onSaved = { occurredAt ->
@@ -159,6 +176,11 @@ class MainActivity : ComponentActivity() {
                                 modifier = screenModifier,
                                 onAddTransaction = { addingTransaction = true },
                                 monthAnchor = transactionMonthAnchor,
+                                candidates = state.candidates,
+                                onEditTransaction = { editingTransactionId = selectedTransactionId },
+                                onDeleteTransaction = { repository.deleteTransaction(it) },
+                                onDeleted = { selectedTransactionId = null },
+                                onReviewCandidate = { id, confirmed -> repository.reviewCandidate(id, confirmed) },
                             )
                         }
 
@@ -216,6 +238,7 @@ class MainActivity : ComponentActivity() {
 private data class TransactionListState(
     val transactions: List<FinancialTransactionEntity> = emptyList(),
     val consistency: Map<Long, TransactionConsistencyUiState> = emptyMap(),
+    val candidates: List<ConsistencyCandidateEntity> = emptyList(),
     val rules: List<UserRuleEntity> = emptyList(),
     val ruleMatches: Map<Long, List<RuleMatchEntity>> = emptyMap(),
     val loading: Boolean = true,
