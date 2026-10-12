@@ -198,8 +198,8 @@ private fun TransactionCard(
             }
 
             DetailRow("상대방", transaction.counterparty)
-            DetailRow("계좌", "****${transaction.accountLast4}")
-            DetailRow("잔액", money(transaction.balance))
+            DetailRow("계좌", if (transaction.accountLast4.isBlank()) "정보 없음" else "****${transaction.accountLast4}")
+            DetailRow("잔액", transaction.balance?.let(::money) ?: "정보 없음")
             Text(SimpleDateFormat("M월 d일 HH:mm", Locale.KOREA).format(Date(transaction.occurredAt)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -12,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.Lifecycle
@@ -24,6 +26,7 @@ import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
 import com.orchid241.financenotificationmanager.data.local.UserRuleEntity
 import com.orchid241.financenotificationmanager.ui.AppBottomBar
 import com.orchid241.financenotificationmanager.ui.AppTab
+import com.orchid241.financenotificationmanager.ui.AddTransactionScreen
 import com.orchid241.financenotificationmanager.ui.HomeScreen
 import com.orchid241.financenotificationmanager.ui.RulesScreen
 import com.orchid241.financenotificationmanager.ui.SettingsScreen
@@ -83,6 +86,18 @@ class MainActivity : ComponentActivity() {
             var selectedTab by rememberSaveable { mutableStateOf(AppTab.HOME) }
             var transactionFilter by rememberSaveable { mutableStateOf(TransactionFilter.ALL) }
             var selectedTransactionId by rememberSaveable { mutableStateOf<Long?>(null) }
+            var addingTransaction by rememberSaveable { mutableStateOf(false) }
+            var transactionMonthAnchor by rememberSaveable { mutableStateOf<Long?>(null) }
+            val transactionScreenState = rememberSaveableStateHolder()
+
+            // 홈에서는 콜백을 등록하지 않아 Android의 기본 종료 동작을 유지한다.
+            BackHandler(enabled = selectedTab != AppTab.HOME) {
+                when {
+                    selectedTransactionId != null -> selectedTransactionId = null
+                    addingTransaction -> addingTransaction = false
+                    else -> selectedTab = AppTab.HOME
+                }
+            }
 
             FinanceNotificationManagerTheme(darkTheme = darkMode) {
                 Scaffold(
@@ -93,6 +108,7 @@ class MainActivity : ComponentActivity() {
                             onTabSelected = { tab ->
                                 selectedTab = tab
                                 selectedTransactionId = null
+                                addingTransaction = false
                             },
                         )
                     },
@@ -109,6 +125,7 @@ class MainActivity : ComponentActivity() {
                                 transactionFilter = filter
                                 selectedTransactionId = null
                                 selectedTab = AppTab.TRANSACTIONS
+                                transactionMonthAnchor = null
                             },
                             onViewTransactionDetail = { transactionId ->
                                 selectedTransactionId = transactionId
@@ -117,19 +134,33 @@ class MainActivity : ComponentActivity() {
                             modifier = screenModifier,
                         )
 
-                        AppTab.TRANSACTIONS -> TransactionsScreen(
-                            transactions = state.transactions,
-                            consistency = state.consistency,
-                            ruleMatches = state.ruleMatches,
-                            loading = state.loading,
-                            failed = state.failed,
-                            selectedFilter = transactionFilter,
-                            onFilterSelected = { transactionFilter = it },
-                            selectedTransactionId = selectedTransactionId,
-                            onTransactionSelected = { selectedTransactionId = it },
-                            onDetailBack = { selectedTransactionId = null },
+                        AppTab.TRANSACTIONS -> if (addingTransaction) AddTransactionScreen(
+                            onBack = { addingTransaction = false },
+                            onSave = { repository.addManualTransaction(it) },
+                            onSaved = { occurredAt ->
+                                transactionScreenState.removeState("transactions")
+                                transactionMonthAnchor = occurredAt
+                                transactionFilter = TransactionFilter.ALL
+                                addingTransaction = false
+                            },
                             modifier = screenModifier,
-                        )
+                        ) else transactionScreenState.SaveableStateProvider("transactions") {
+                            TransactionsScreen(
+                                transactions = state.transactions,
+                                consistency = state.consistency,
+                                ruleMatches = state.ruleMatches,
+                                loading = state.loading,
+                                failed = state.failed,
+                                selectedFilter = transactionFilter,
+                                onFilterSelected = { transactionFilter = it },
+                                selectedTransactionId = selectedTransactionId,
+                                onTransactionSelected = { selectedTransactionId = it },
+                                onDetailBack = { selectedTransactionId = null },
+                                modifier = screenModifier,
+                                onAddTransaction = { addingTransaction = true },
+                                monthAnchor = transactionMonthAnchor,
+                            )
+                        }
 
                         AppTab.RULES -> RulesScreen(
                             rules = state.rules,

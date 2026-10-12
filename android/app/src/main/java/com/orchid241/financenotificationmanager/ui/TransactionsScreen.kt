@@ -16,6 +16,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -55,8 +56,13 @@ fun TransactionsScreen(
     onTransactionSelected: (Long) -> Unit,
     onDetailBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onAddTransaction: () -> Unit = {},
+    monthAnchor: Long? = null,
 ) {
-    var monthOffset by rememberSaveable { mutableIntStateOf(0) }
+    val now = Calendar.getInstance()
+    val selectedMonth = Calendar.getInstance().apply { timeInMillis = monthAnchor ?: now.timeInMillis }
+    val anchorOffset = (selectedMonth.get(Calendar.YEAR) - now.get(Calendar.YEAR)) * 12 + selectedMonth.get(Calendar.MONTH) - now.get(Calendar.MONTH)
+    var monthOffset by rememberSaveable(monthAnchor) { mutableIntStateOf(anchorOffset) }
 
     val selectedTransaction = selectedTransactionId?.let { id -> transactions.firstOrNull { it.id == id } }
     if (selectedTransaction != null) {
@@ -97,11 +103,10 @@ fun TransactionsScreen(
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
-            Text(
-                text = "거래",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("거래", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                TextButton(onClick = onAddTransaction) { Text("+ 거래 추가") }
+            }
         }
 
         item {
@@ -123,8 +128,8 @@ fun TransactionsScreen(
                 Text(
                     text = "›",
                     style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.clickable(enabled = monthOffset < 0) { monthOffset += 1 }.padding(8.dp),
-                    color = if (monthOffset < 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable(enabled = monthOffset < maxOf(0, anchorOffset)) { monthOffset += 1 }.padding(8.dp),
+                    color = if (monthOffset < maxOf(0, anchorOffset)) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -269,7 +274,7 @@ private fun TransactionDetailScreen(
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     DetailLine("유형", if (deposit) "입금" else "출금")
                     DetailLine("계좌", if (transaction.accountLast4.isBlank()) "정보 없음" else "****${transaction.accountLast4}")
-                    DetailLine("잔액", transactionMoney(transaction.balance))
+                    DetailLine("잔액", transaction.balance?.let(::transactionMoney) ?: "정보 없음")
                     DetailLine("출처", transaction.source)
                     DetailLine("시간", SimpleDateFormat("yyyy년 M월 d일 HH:mm", Locale.KOREA).format(Date(transaction.occurredAt)))
                 }

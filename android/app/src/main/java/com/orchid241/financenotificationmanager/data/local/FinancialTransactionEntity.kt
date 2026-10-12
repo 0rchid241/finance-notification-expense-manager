@@ -18,12 +18,13 @@ import com.orchid241.financenotificationmanager.parser.TransactionType
 )
 data class FinancialTransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val rawNotificationId: Long,
+    // 수동 거래는 원본 알림을 만들지 않고 null로 저장한다.
+    val rawNotificationId: Long?,
     val transactionType: TransactionType,
     val amount: Long,
     val counterparty: String,
     val accountLast4: String,
-    val balance: Long,
+    val balance: Long?,
     val source: String,
     val occurredAt: Long,
     val createdAt: Long,

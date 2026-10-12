@@ -39,6 +39,58 @@ class FinancialTransactionRepository(
     fun supportsPackage(packageName: String): Boolean =
         parserRegistry.supportsPackage(packageName)
 
+    suspend fun addManualTransaction(input: ManualTransactionInput): Long {
+        val valid = input.validated()
+        return database.withTransaction {
+            saveTransactionAndEvaluate(
+                FinancialTransactionEntity(
+                    rawNotificationId = null,
+                    transactionType = valid.transactionType,
+                    amount = valid.amount,
+                    counterparty = valid.counterparty,
+                    accountLast4 = valid.accountLast4,
+                    balance = valid.balance,
+                    source = "수동 입력",
+                    occurredAt = valid.occurredAt,
+                    createdAt = System.currentTimeMillis(),
+                ),
+            )
+        }
+    }
+
+    // 알림 거래와 수동 거래가 같은 정합성·규칙 평가 경로를 사용한다. 호출자는 Room 트랜잭션 안에 있어야 한다.
+    private suspend fun saveTransactionAndEvaluate(transaction: FinancialTransactionEntity): Long {
+        val transactionId = database.financialTransactionDao().insert(transaction)
+        val storedTransaction = transaction.copy(id = transactionId)
+        val createdAt = System.currentTimeMillis()
+        consistencyEngine.findCandidates(database.financialTransactionDao().getAll())
+            .filter { it.firstTransactionId == transactionId || it.secondTransactionId == transactionId }
+            .forEach { candidate ->
+                database.consistencyCandidateDao().insert(
+                    ConsistencyCandidateEntity(
+                        firstTransactionId = candidate.firstTransactionId,
+                        secondTransactionId = candidate.secondTransactionId,
+                        relationType = candidate.relationType,
+                        reasonText = candidate.reasons.joinToString(" · "),
+                        createdAt = createdAt,
+                    ),
+                )
+            }
+        val rules = database.userRuleDao().getEnabled().map { it.toRuleModel() }
+        ruleEngine.evaluate(storedTransaction, rules).forEach { match ->
+            database.ruleMatchDao().insert(
+                RuleMatchEntity(
+                    ruleId = match.ruleId,
+                    transactionId = match.transactionId,
+                    ruleName = match.ruleName,
+                    message = match.message,
+                    createdAt = createdAt,
+                ),
+            )
+        }
+        return transactionId
+    }
+
     suspend fun addAmountRule(
         name: String,
         amountThreshold: Long,
@@ -227,41 +279,7 @@ class FinancialTransactionRepository(
                         occurredAt = parsed.occurredAt,
                         createdAt = System.currentTimeMillis(),
                     )
-                    val transactionId = database.financialTransactionDao().insert(transaction)
-                    val storedTransaction = transaction.copy(id = transactionId)
-
-                    val candidates = consistencyEngine
-                        .findCandidates(database.financialTransactionDao().getAll())
-                        .filter { candidate ->
-                            candidate.firstTransactionId == transactionId || candidate.secondTransactionId == transactionId
-                        }
-
-                    val createdAt = System.currentTimeMillis()
-                    candidates.forEach { candidate ->
-                        database.consistencyCandidateDao().insert(
-                            ConsistencyCandidateEntity(
-                                firstTransactionId = candidate.firstTransactionId,
-                                secondTransactionId = candidate.secondTransactionId,
-                                relationType = candidate.relationType,
-                                reasonText = candidate.reasons.joinToString(" · "),
-                                createdAt = createdAt,
-                            ),
-                        )
-                    }
-
-                    val rules = database.userRuleDao().getEnabled().map { it.toRuleModel() }
-                    ruleEngine.evaluate(storedTransaction, rules).forEach { match ->
-                        database.ruleMatchDao().insert(
-                            RuleMatchEntity(
-                                ruleId = match.ruleId,
-                                transactionId = match.transactionId,
-                                ruleName = match.ruleName,
-                                message = match.message,
-                                createdAt = createdAt,
-                            ),
-                        )
-                    }
-
+                    saveTransactionAndEvaluate(transaction)
                     database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.PROCESSED)
                 }
                 ParseResult.Failure -> database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.PARSE_FAILED)

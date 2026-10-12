@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         UserRuleEntity::class,
         RuleMatchEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(
@@ -105,6 +105,56 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 부모 테이블 교체 시 CASCADE로 연결 데이터가 유실되지 않도록 먼저 복사한다.
+                db.execSQL("CREATE TEMP TABLE saved_candidates AS SELECT * FROM consistency_candidates")
+                db.execSQL("CREATE TEMP TABLE saved_matches AS SELECT * FROM rule_matches")
+                db.execSQL("CREATE TEMP TABLE saved_sequences AS SELECT * FROM sqlite_sequence")
+                db.execSQL("""
+                    CREATE TABLE `financial_transactions_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `rawNotificationId` INTEGER,
+                        `transactionType` TEXT NOT NULL,
+                        `amount` INTEGER NOT NULL,
+                        `counterparty` TEXT NOT NULL,
+                        `accountLast4` TEXT NOT NULL,
+                        `balance` INTEGER,
+                        `source` TEXT NOT NULL,
+                        `occurredAt` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`rawNotificationId`) REFERENCES `raw_notifications`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION
+                    )
+                """.trimIndent())
+                db.execSQL("INSERT INTO financial_transactions_new SELECT * FROM financial_transactions")
+                // Room이 Migration 전체를 트랜잭션으로 실행한다. 원본과 규칙 테이블은 변경하지 않는다.
+                db.execSQL("DROP TABLE consistency_candidates")
+                db.execSQL("DROP TABLE rule_matches")
+                db.execSQL("DROP TABLE financial_transactions")
+                db.execSQL("ALTER TABLE financial_transactions_new RENAME TO financial_transactions")
+                db.execSQL("CREATE INDEX `index_financial_transactions_rawNotificationId` ON `financial_transactions` (`rawNotificationId`)")
+                MIGRATION_2_3.migrate(db)
+                MIGRATION_3_4.migrate(db)
+                db.execSQL("INSERT INTO consistency_candidates SELECT * FROM saved_candidates")
+                db.execSQL("INSERT INTO rule_matches SELECT * FROM saved_matches")
+                // 삭제된 마지막 ID가 있어도 자동 생성 ID를 다시 사용하지 않는다.
+                db.execSQL("""
+                    INSERT INTO sqlite_sequence(name, seq)
+                    SELECT name, seq FROM saved_sequences
+                    WHERE name IN ('financial_transactions', 'consistency_candidates', 'rule_matches')
+                    AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE sqlite_sequence.name = saved_sequences.name)
+                """.trimIndent())
+                db.execSQL("""
+                    UPDATE sqlite_sequence SET seq = MAX(seq, COALESCE(
+                        (SELECT saved_sequences.seq FROM saved_sequences WHERE saved_sequences.name = sqlite_sequence.name), seq
+                    )) WHERE name IN ('financial_transactions', 'consistency_candidates', 'rule_matches')
+                """.trimIndent())
+                db.execSQL("DROP TABLE saved_candidates")
+                db.execSQL("DROP TABLE saved_matches")
+                db.execSQL("DROP TABLE saved_sequences")
+            }
+        }
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -114,7 +164,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "finance_notification_manager.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { instance = it }
             }
     }
 }
