@@ -222,6 +222,7 @@ class MainActivity : ComponentActivity() {
                             onResetData = {
                                 lifecycleScope.launch(Dispatchers.IO) { repository.clearAllData() }
                             },
+                            walletMockTools = { WalletMockEntry() },
                             showDeveloperTools = BuildConfig.DEBUG,
                             onAddRefundDemoData = {
                                 lifecycleScope.launch(Dispatchers.IO) { repository.addRefundDemoData() }

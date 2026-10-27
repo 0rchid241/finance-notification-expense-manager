@@ -321,10 +321,18 @@ class FinancialTransactionRepository(
         val id = rawRepository.saveRawNotification(notificationKey, packageName, title, text, postedAt, receivedAt)
         val raw = checkNotNull(database.rawNotificationDao().getById(id))
         val result = parserRegistry.parse(raw)
+        processStoredNotification(id, result)
+        return result
+    }
+
+    /** 저장된 원본을 바꾸지 않고 공통 거래·정합성·규칙 저장 경로를 실행한다. */
+    internal suspend fun processStoredNotification(id: Long, result: ParseResult) {
+        requireNotNull(database.rawNotificationDao().getById(id))
         database.withTransaction {
             when (result) {
                 is ParseResult.Success -> {
                     val parsed = result.transaction
+                    require(parsed.rawNotificationId == id)
                     val transaction = FinancialTransactionEntity(
                         rawNotificationId = parsed.rawNotificationId,
                         transactionType = parsed.transactionType,
@@ -342,7 +350,6 @@ class FinancialTransactionRepository(
                 ParseResult.Failure -> database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.PARSE_FAILED)
             }
         }
-        return result
     }
 
     private fun UserRuleEntity.toRuleModel(): UserRule = UserRule(

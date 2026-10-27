@@ -1,0 +1,283 @@
+{
+  "notice": "[TEST] 실제 삼성월렛 형식이 아닌 합성 시뮬레이션. 모든 이름·금액은 가상이다.",
+  "scenarios": [
+    {
+      "id": "single",
+      "label": "A 단일 완전 알림",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 0,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "PROCESSED"
+      ],
+      "transactions": 1
+    },
+    {
+      "id": "update",
+      "label": "B 불완전 → 완전 업데이트",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "merchant=가상상점",
+          "delay": 100,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "MOCK_WAITING",
+        "PROCESSED"
+      ],
+      "transactions": 1
+    },
+    {
+      "id": "distinct",
+      "label": "C 같은 금액의 별도 결제",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "b",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 100,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "PROCESSED",
+        "PROCESSED"
+      ],
+      "transactions": 2
+    },
+    {
+      "id": "reverse",
+      "label": "D 업데이트 순서 역전",
+      "events": [
+        {
+          "event": "a",
+          "text": "merchant=가상상점",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "amount=1000",
+          "delay": 100,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "MOCK_WAITING",
+        "PROCESSED"
+      ],
+      "transactions": 1
+    },
+    {
+      "id": "duplicate",
+      "label": "D 중복 콜백",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 100,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "PROCESSED",
+        "MOCK_DUPLICATE"
+      ],
+      "transactions": 1
+    },
+    {
+      "id": "expiry",
+      "label": "D TTL 경계 만료",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "merchant=가상상점",
+          "delay": 5000,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "MOCK_WAITING",
+        "MOCK_WAITING"
+      ],
+      "transactions": 0
+    },
+    {
+      "id": "invalid",
+      "label": "D 빈 본문·홍보·잘못된 금액",
+      "events": [
+        {
+          "event": "a",
+          "text": "",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "promotion=선물",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "amount=0;merchant=가상상점",
+          "delay": 0,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "MOCK_INVALID",
+        "MOCK_INVALID",
+        "MOCK_INVALID"
+      ],
+      "transactions": 0
+    },
+    {
+      "id": "conflict",
+      "label": "D 같은 이벤트 필드 충돌",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "amount=2000;merchant=가상상점",
+          "delay": 100,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "MOCK_WAITING",
+        "MOCK_CONFLICT"
+      ],
+      "transactions": 0
+    },
+    {
+      "id": "restart",
+      "label": "D 완료 후 처리기 재시작",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 100,
+          "key": "shared",
+          "restart": true
+        }
+      ],
+      "expected": [
+        "PROCESSED",
+        "MOCK_DUPLICATE"
+      ],
+      "transactions": 1
+    },
+    {
+      "id": "partial_restart",
+      "label": "D 미완료 후 처리기 재시작",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "merchant=가상상점",
+          "delay": 100,
+          "key": "shared",
+          "restart": true
+        }
+      ],
+      "expected": [
+        "MOCK_WAITING",
+        "MOCK_WAITING"
+      ],
+      "transactions": 0
+    },
+    {
+      "id": "separate_partial",
+      "label": "D 별도 이벤트 조각은 병합 금지",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "b",
+          "text": "merchant=가상상점",
+          "delay": 100,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "MOCK_WAITING",
+        "MOCK_WAITING"
+      ],
+      "transactions": 0
+    },
+    {
+      "id": "receipt_expiry",
+      "label": "D 완료 영수증은 TTL 후 유지",
+      "events": [
+        {
+          "event": "a",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 0,
+          "key": "shared"
+        },
+        {
+          "event": "a",
+          "text": "amount=1000;merchant=가상상점",
+          "delay": 6000,
+          "key": "shared"
+        }
+      ],
+      "expected": [
+        "PROCESSED",
+        "MOCK_DUPLICATE"
+      ],
+      "transactions": 1
+    }
+  ]
+}
