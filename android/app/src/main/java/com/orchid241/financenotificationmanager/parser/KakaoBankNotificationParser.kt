@@ -12,7 +12,7 @@ data class ParsedFinancialTransaction(
     val amount: Long,
     val counterparty: String,
     val accountLast4: String,
-    val balance: Long,
+    val balance: Long?,
     val source: String,
     val occurredAt: Long,
 )

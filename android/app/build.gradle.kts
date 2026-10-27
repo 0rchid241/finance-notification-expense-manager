@@ -46,6 +46,14 @@ android {
     sourceSets.getByName("test").resources.directories.add("schemas")
 }
 
+// 개발 전용 코드도 별도 variant에서 단위/기기 테스트를 실행한다.
+androidComponents {
+    beforeVariants(selector().withBuildType("externalDebug")) { variant ->
+        variant.hostTests["UnitTest"]?.enable = true
+        variant.enableAndroidTest = true
+    }
+}
+
 // Keep versioned schemas for future Room migrations.
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
@@ -69,6 +77,7 @@ dependencies {
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+    add("externalDebugImplementation", libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
