@@ -36,7 +36,7 @@ class SamsungWalletFlowTest {
             notificationKey = "wallet-payment",
             packageName = SupportedFinancialApps.SAMSUNG_WALLET,
             title = "3,800원 결제 완료",
-            text = "삼성 월렛 포인트 75원을 사용하여 컴포즈커피 북한산보국문점에서 결제했어요.",
+            text = "삼성 월렛 포인트 75원을 사용하여 가상카페에서 결제했어요.",
             postedAt = 1000,
             receivedAt = 2000,
         )
@@ -56,7 +56,7 @@ class SamsungWalletFlowTest {
             notificationKey = "wallet-points",
             packageName = SupportedFinancialApps.SAMSUNG_WALLET,
             title = "포인트 18원 적립됨",
-            text = "컴포즈커피 북한산보국문점",
+            text = "가상카페",
             postedAt = 1000,
             receivedAt = 2000,
         )

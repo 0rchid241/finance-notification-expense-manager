@@ -10,7 +10,7 @@ class SamsungWalletNotificationParserTest {
 
     private fun raw(
         title: String? = "3,800원 결제 완료",
-        text: String? = "삼성 월렛 포인트 75원을 사용하여 컴포즈커피 북한산보국문점에서 결제했어요.",
+        text: String? = "삼성 월렛 포인트 75원을 사용하여 가상카페에서 결제했어요.",
         packageName: String = SupportedFinancialApps.SAMSUNG_WALLET,
     ) = RawNotificationEntity(
         id = 17,
@@ -22,11 +22,11 @@ class SamsungWalletNotificationParserTest {
         receivedAt = 1_761_696_001_000L,
     )
 
-    @Test fun parsesPaymentFromScreenshot() {
+    @Test fun parsesObservedPaymentFormat() {
         val tx = (parser.parse(raw()) as ParseResult.Success).transaction
         assertEquals(TransactionType.WITHDRAWAL, tx.transactionType)
         assertEquals(3800L, tx.amount)
-        assertEquals("컴포즈커피 북한산보국문점", tx.counterparty)
+        assertEquals("가상카페", tx.counterparty)
         assertEquals("", tx.accountLast4)
         assertEquals(null, tx.balance)
         assertEquals("삼성 월렛", tx.source)
@@ -40,7 +40,7 @@ class SamsungWalletNotificationParserTest {
     }
 
     @Test fun pointAccrualIsNotDeposit() {
-        assertEquals(ParseResult.Ignored, parser.parse(raw("포인트 18원 적립됨", "컴포즈커피 북한산보국문점")))
+        assertEquals(ParseResult.Ignored, parser.parse(raw("포인트 18원 적립됨", "가상카페")))
     }
 
     @Test fun unknownAndMalformedMessagesDoNotBecomeTransactions() {
