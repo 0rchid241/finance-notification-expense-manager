@@ -18,6 +18,7 @@ import com.orchid241.financenotificationmanager.rules.UserRule
 object RawProcessingStatus {
     const val PROCESSED = "PROCESSED"
     const val PARSE_FAILED = "PARSE_FAILED"
+    const val IGNORED = "IGNORED"
 }
 
 /** Persists raw first, then atomically saves the parsed transaction, consistency candidates, rule matches, and status. */
@@ -339,6 +340,7 @@ class FinancialTransactionRepository(
                     saveTransactionAndEvaluate(transaction)
                     database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.PROCESSED)
                 }
+                ParseResult.Ignored -> database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.IGNORED)
                 ParseResult.Failure -> database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.PARSE_FAILED)
             }
         }
