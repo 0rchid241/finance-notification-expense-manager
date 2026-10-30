@@ -4,6 +4,7 @@ import androidx.room.Room
 import com.orchid241.financenotificationmanager.data.FinancialTransactionRepository
 import com.orchid241.financenotificationmanager.data.RawProcessingStatus
 import com.orchid241.financenotificationmanager.parser.ParseResult
+import com.orchid241.financenotificationmanager.parser.FinancialNotificationParserRegistry
 import com.orchid241.financenotificationmanager.parser.SupportedFinancialApps
 import com.orchid241.financenotificationmanager.parser.TransactionType
 import kotlinx.coroutines.flow.first
@@ -87,6 +88,30 @@ class SamsungWalletFlowTest {
         assertEquals("삼성 월렛", raw.title)
         assertEquals("알림 2개", raw.text)
         assertEquals(RawProcessingStatus.PARSE_FAILED, raw.processingStatus)
+        assertTrue(repository.observeAll().first().isEmpty())
+    }
+
+    @Test fun rawCaptureDoesNotRequireRegisteredParser() = runBlocking {
+        // Collect a known financial app's raw event even before its parser exists.
+        val withoutParsers = FinancialTransactionRepository(
+            database,
+            FinancialNotificationParserRegistry(emptyList()),
+        )
+        assertTrue(withoutParsers.supportsPackage(SupportedFinancialApps.SAMSUNG_WALLET))
+
+        val result = withoutParsers.collectNotification(
+            notificationKey = "wallet-no-parser",
+            packageName = SupportedFinancialApps.SAMSUNG_WALLET,
+            title = "3,800원 결제 완료",
+            text = "가상카페에서 결제했어요.",
+            postedAt = 1000,
+            receivedAt = 2000,
+        )
+
+        assertEquals(ParseResult.Failure, result)
+        val raw = database.rawNotificationDao().getAll().single()
+        assertEquals(RawProcessingStatus.PARSE_FAILED, raw.processingStatus)
+        assertEquals(SupportedFinancialApps.SAMSUNG_WALLET, raw.packageName)
         assertTrue(repository.observeAll().first().isEmpty())
     }
 
