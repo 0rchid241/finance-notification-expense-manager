@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -64,4 +65,29 @@ class SamsungWalletFlowTest {
         assertEquals(RawProcessingStatus.IGNORED, database.rawNotificationDao().getAll().single().processingStatus)
         assertTrue(repository.observeAll().first().isEmpty())
     }
+    @Test fun unsupportedNotificationFormatKeepsRawWithoutCreatingTransaction() = runBlocking {
+        // Samsung Wallet's bundled summary may not match a payment parser.
+        // The raw notification must still be kept for diagnosing new formats.
+        assertTrue(SupportedFinancialApps.supports(SupportedFinancialApps.SAMSUNG_WALLET))
+        assertTrue(SupportedFinancialApps.supports(SupportedFinancialApps.KAKAO_BANK))
+        assertFalse(SupportedFinancialApps.supports("com.samsung.android.app.notes"))
+
+        val result = repository.collectNotification(
+            notificationKey = "wallet-summary",
+            packageName = SupportedFinancialApps.SAMSUNG_WALLET,
+            title = "삼성 월렛",
+            text = "알림 2개",
+            postedAt = 1000,
+            receivedAt = 2000,
+        )
+
+        assertEquals(ParseResult.Failure, result)
+        val raw = database.rawNotificationDao().getAll().single()
+        assertEquals(SupportedFinancialApps.SAMSUNG_WALLET, raw.packageName)
+        assertEquals("삼성 월렛", raw.title)
+        assertEquals("알림 2개", raw.text)
+        assertEquals(RawProcessingStatus.PARSE_FAILED, raw.processingStatus)
+        assertTrue(repository.observeAll().first().isEmpty())
+    }
+
 }
