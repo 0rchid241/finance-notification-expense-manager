@@ -8,6 +8,7 @@ import com.orchid241.financenotificationmanager.data.FinancialTransactionReposit
 import com.orchid241.financenotificationmanager.data.local.AppDatabase
 import com.orchid241.financenotificationmanager.parser.FinancialNotificationParserRegistry
 import com.orchid241.financenotificationmanager.parser.ParseResult
+import com.orchid241.financenotificationmanager.parser.SupportedFinancialApps
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +27,9 @@ class FinanceNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (!parserRegistry.supportsPackage(sbn.packageName)) return
+        // Collection must not depend on the parser recognizing the notification format.
+        // Preserve raw notifications from allowlisted apps even when parsing fails.
+        if (!SupportedFinancialApps.supports(sbn.packageName)) return
         val receivedAt = System.currentTimeMillis()
         val notificationKey = sbn.key
         val packageName = sbn.packageName
