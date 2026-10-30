@@ -12,13 +12,14 @@ data class ParsedFinancialTransaction(
     val amount: Long,
     val counterparty: String,
     val accountLast4: String,
-    val balance: Long,
+    val balance: Long?,
     val source: String,
     val occurredAt: Long,
 )
 
 sealed interface ParseResult {
     data class Success(val transaction: ParsedFinancialTransaction) : ParseResult
+    data object Ignored : ParseResult
     data object Failure : ParseResult
 }
 

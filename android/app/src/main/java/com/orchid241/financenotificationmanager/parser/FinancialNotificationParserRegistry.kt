@@ -9,6 +9,7 @@ import com.orchid241.financenotificationmanager.data.local.RawNotificationEntity
 class FinancialNotificationParserRegistry(
     private val parsers: List<FinancialNotificationParser> = listOf(
         KakaoBankNotificationParser(),
+        SamsungWalletNotificationParser(),
     ),
 ) {
     fun supportsPackage(packageName: String): Boolean =

@@ -10,6 +10,7 @@ import com.orchid241.financenotificationmanager.data.local.RuleMatchEntity
 import com.orchid241.financenotificationmanager.data.local.UserRuleEntity
 import com.orchid241.financenotificationmanager.parser.FinancialNotificationParserRegistry
 import com.orchid241.financenotificationmanager.parser.ParseResult
+import com.orchid241.financenotificationmanager.parser.SupportedFinancialApps
 import com.orchid241.financenotificationmanager.parser.TransactionType
 import com.orchid241.financenotificationmanager.rules.RuleConditionType
 import com.orchid241.financenotificationmanager.rules.TransactionRuleEngine
@@ -18,6 +19,7 @@ import com.orchid241.financenotificationmanager.rules.UserRule
 object RawProcessingStatus {
     const val PROCESSED = "PROCESSED"
     const val PARSE_FAILED = "PARSE_FAILED"
+    const val IGNORED = "IGNORED"
 }
 
 /** Persists raw first, then atomically saves the parsed transaction, consistency candidates, rule matches, and status. */
@@ -37,8 +39,10 @@ class FinancialTransactionRepository(
 
     fun observeRuleMatches() = database.ruleMatchDao().observeAll()
 
+    // Raw collection is based on known financial app packages, not parser readiness.
+    // Unsupported notification formats remain available as PARSE_FAILED raw records.
     fun supportsPackage(packageName: String): Boolean =
-        parserRegistry.supportsPackage(packageName)
+        SupportedFinancialApps.supports(packageName)
 
     suspend fun addManualTransaction(input: ManualTransactionInput): Long {
         val valid = input.validated()
@@ -339,6 +343,7 @@ class FinancialTransactionRepository(
                     saveTransactionAndEvaluate(transaction)
                     database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.PROCESSED)
                 }
+                ParseResult.Ignored -> database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.IGNORED)
                 ParseResult.Failure -> database.rawNotificationDao().updateProcessingStatus(id, RawProcessingStatus.PARSE_FAILED)
             }
         }
