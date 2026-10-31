@@ -68,8 +68,8 @@ fun SettingsScreen(
                 )
                 SettingRow(
                     title = "지원 금융 앱",
-                    description = "현재 카카오뱅크 알림 파서를 지원해요",
-                    trailing = "1개",
+                    description = "카카오뱅크 · 삼성 월렛 알림 파서를 지원해요",
+                    trailing = "2개",
                 )
             }
         }
