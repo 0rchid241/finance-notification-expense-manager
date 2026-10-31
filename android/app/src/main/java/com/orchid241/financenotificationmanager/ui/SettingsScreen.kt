@@ -20,6 +20,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 
 @Composable
 fun SettingsScreen(
@@ -43,8 +47,21 @@ fun SettingsScreen(
     val context = LocalContext.current
     var confirmReset by remember { mutableStateOf(false) }
     var confirmDemoData by remember { mutableStateOf(false) }
-    val notificationAccessEnabled = remember {
-        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    var notificationAccessEnabled by remember { mutableStateOf(false) }
+    // Permission is granted in system settings outside the app. Refresh on return.
+    DisposableEffect(context) {
+        val lifecycleOwner = context as? LifecycleOwner
+        fun refreshNotificationAccess() {
+            notificationAccessEnabled = NotificationManagerCompat
+                .getEnabledListenerPackages(context)
+                .contains(context.packageName)
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) refreshNotificationAccess()
+        }
+        refreshNotificationAccess()
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
     }
 
     LazyColumn(
