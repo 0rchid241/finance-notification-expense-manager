@@ -1,5 +1,8 @@
 # 거래 수정·삭제, 정합성 검토와 월 집계 구현 보고서
 
+> **역사적 구현·검증 보고서(2026-10-12).** 아래 ‘커밋·push·PR 생성·merge는 수행하지 않았다’는 문장은 **이 보고서 작성 세션 당시의 기록**입니다. 구현 기능은 이후 [PR #10](https://github.com/0rchid241/finance-notification-expense-manager/pull/10)으로 `main`에 병합되었습니다. 현재 MVP 전체 범위는 [README](../README.md)를 참고하세요.
+
+
 작업일: 2026-10-12. 브랜치: `feature/9-ui-foundation`.
 시작 전에 `git fetch origin`을 완료하고 로컬과 원격이 `c8f2c6b`로 동일함을 확인했다.
 기존 데이터 모델·Repository·정합성/규칙 엔진·화면·디자인 시스템을 읽은 뒤 수정했다.
