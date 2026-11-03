@@ -43,6 +43,7 @@ fun SettingsScreen(
     showDeveloperTools: Boolean = false,
     onAddRefundDemoData: () -> Unit = {},
     modifier: Modifier = Modifier,
+    walletMockTools: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     var confirmReset by remember { mutableStateOf(false) }
@@ -123,6 +124,8 @@ fun SettingsScreen(
                 }
             }
         }
+
+        item { walletMockTools() }
 
         item {
             SettingsSection(title = "데이터") {
