@@ -118,10 +118,10 @@ cd android
 
 | 범위 | 확인 근거 |
 | --- | --- |
-| 카카오뱅크 | 실제 Android 기기에서 **입금·출금 알림 → Room 거래 저장 → Compose 화면 표시** 확인 ([초기 구현 PR #3](../../pull/3)) |
-| 거래 관리·정합성 UI | [PR #10](../../pull/10) 검증 기록: **단위 테스트 87개, 연결 기기 테스트 12개** 통과 |
-| 삼성 월렛 | 실제 결제 알림 형식에 대한 파서 추가, 포인트 적립 제외 및 Room 연동 테스트 ([PR #14](../../pull/14)); 개발자가 실기기 동작 확인 후 병합 |
-| 최신 `main` 빌드 | [PR #15](../../pull/15) 병합 후 GitHub Actions에서 **단위 테스트 및 일반/`externalDebug` APK 빌드 성공** ([실행 기록](../../actions)) |
+| 카카오뱅크 | 실제 Android 기기에서 **입금·출금 알림 → Room 거래 저장 → Compose 화면 표시** 확인 ([초기 구현 PR #3](https://github.com/0rchid241/finance-notification-expense-manager/pull/3)) |
+| 거래 관리·정합성 UI | [PR #10](https://github.com/0rchid241/finance-notification-expense-manager/pull/10) 검증 기록: **단위 테스트 87개, 연결 기기 테스트 12개** 통과 |
+| 삼성 월렛 | 실제 결제 알림 형식에 대한 파서 추가, 포인트 적립 제외 및 Room 연동 테스트 ([PR #14](https://github.com/0rchid241/finance-notification-expense-manager/pull/14)); 개발자가 실기기 동작 확인 후 병합 |
+| 최신 `main` 빌드 | [PR #15](https://github.com/0rchid241/finance-notification-expense-manager/pull/15) 병합 후 GitHub Actions에서 **단위 테스트 및 일반/`externalDebug` APK 빌드 성공** ([실행 기록](https://github.com/0rchid241/finance-notification-expense-manager/actions)) |
 
 테스트 수치는 **해당 PR 시점의 기록**이며, 모든 실제 금융사·결제·환불 상황에 대한 전수 검증을 의미하지 않습니다.
 
