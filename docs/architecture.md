@@ -1,179 +1,118 @@
-# 시스템 구조
+# 시스템 구조 — 2026년 10월 MVP
 
-## 목표 아키텍처
+> **현행 설명 (2026-11-03 기준)** · Kotlin/Jetpack Compose/Room 기반 Android 앱.  
+> 현재 서비스는 별도 백엔드 호출 없이 **기기 내부에서 금융 알림을 수집하고 거래를 관리**합니다.
 
-현재 MVP는 서버 의존 없이 **Android 앱 내부에서 핵심 처리를 완료**하는 구조를 사용한다.
+## 1. 데이터 처리 흐름
 
-```text
-[금융 앱]
-    ↓ 알림
-[NotificationListenerService]
-    ↓
-[Raw Notification]
-    ↓
-[Room Raw 저장]
-    ↓
-[금융 앱별 Parser]
-    ↓
-[구조화된 금융 거래]
-    ↓
-[거래 정합성 처리]
-    ↓
-[사용자 정의 규칙 처리]
-    ↓
-[Compose 가계부 / 피드백 UI]
-```
-
-## 현재 구현 흐름 — 2026-10-01
-
-현재는 카카오뱅크 입금/출금 알림을 다음 흐름으로 처리한다.
-
-```text
-com.kakaobank.channel
-    ↓
-SupportedFinancialApps
-    ↓
+\`\`\`text
+카카오뱅크 / 삼성 월렛 (지원 패키지)
+              │ Android 알림
+              ▼
 FinanceNotificationListenerService
-    ↓
-FinancialTransactionRepository
-    ├─ RawNotificationRepository → raw_notifications
-    └─ KakaoBankNotificationParser
-            ↓
-      financial_transactions
-            ↓
-      Raw 상태 PROCESSED
-            ↓
-      DAO Flow
-            ↓
-      Compose 최근 거래 카드
-```
+              │ SupportedFinancialApps (허용 패키지)
+              ▼
+RawNotificationRepository ───→ raw_notifications (Room)
+              │                       │
+              │                       └─ PENDING 원본 우선 보존
+              ▼
+FinancialNotificationParserRegistry
+       ├─ KakaoBankNotificationParser
+       └─ SamsungWalletNotificationParser
+              │
+       ┌──────┼────────────────┐
+       │      │                │
+    Success  Ignored         Failure
+       │      │                │
+       │    IGNORED       PARSE_FAILED
+       │      └────────────────┘
+       │        금융 거래 미생성
+       ▼
+financial_transactions (Room)
+       │
+       ├── TransactionConsistencyEngine → consistency_candidates
+       ├── TransactionRuleEngine        → rule_matches
+       └── 처리 상태 PROCESSED
+                    │
+                 Room Flow
+                    ▼
+             Compose 4탭 UI
+          홈 / 거래 / 규칙 / 설정
+\`\`\`
 
-파싱 실패 시 거래는 생성하지 않고 Raw 상태를 `PARSE_FAILED`로 남긴다.
-구조화 거래 저장과 `PROCESSED` 상태 변경은 하나의 Room 트랜잭션으로 처리한다.
+- \`FinanceNotificationListenerService\`는 수집을 \`Dispatchers.IO\`에서 수행합니다. 허용 패키지 외 알림은 처리하지 않습니다.
+- 원본 Raw 알림은 **파싱 전에 별도로 저장**합니다. 파싱 성공 시 거래·후보·규칙 매치·Raw 상태 변경은 Room 트랜잭션 안에서 처리합니다.
+- 파싱 실패는 정상 거래로 강제 변환하지 않습니다. 알림 수집 직후 프로세스가 종료되는 등 아직 커밋되지 않은 이벤트에 대한 완전한 전달 보장은 없습니다.
+- 수동 입력 거래는 Raw 참조가 \`null\`이며, 자동 수집 거래와 **같은 정합성·규칙 평가 경로**를 사용합니다.
 
-## 주요 책임
+## 2. 금융 앱별 Parser
 
-### 알림 수집 계층
-- 알림 접근 권한 안내
-- `NotificationListenerService`를 통한 알림 감지
-- 지원 금융 앱 패키지 선별
-- 원본 알림 필드 추출
-- Room에 원본 이벤트 우선 저장
+| 출처 | 지원하는 형식 | 파싱 정책 |
+| --- | --- | --- |
+| 카카오뱅크 (\`com.kakaobank.channel\`) | 확인된 입금·출금 알림 | 유형·금액·상대방·계좌 끝 4자리·잔액 등을 추출 |
+| 삼성 월렛 (\`com.samsung.android.spay\`) | 확인된 **결제 완료** 알림 | 출금 거래로 정규화. 알림에 없는 계좌·잔액은 임의 생성하지 않음 |
+| 삼성 월렛 포인트 적립 | 확인된 적립 알림 | 현금 입금이 아니므로 \`IGNORED\` (거래 미생성) |
+| 그 외 형식 | 지원하지 않거나 인식 불가 | 허용 패키지의 인식 불가 알림은 \`PARSE_FAILED\`; 허용 외 패키지는 미수집 |
 
-### 데이터 계층
-- Room을 이용한 로컬 영속 저장
-- Raw Notification과 구조화 거래 관리
-- Repository를 통해 서비스/도메인 로직과 DAO 직접 결합 방지
-- 명시적 Room Migration으로 기존 데이터 보존
+\`FinancialNotificationParser\` 인터페이스와 Registry를 통해 출처별 파싱 코드를 분리했습니다. 다만 **패키지 허용 목록과 Parser 모두 추가해야** 새 금융 앱을 실제로 지원할 수 있으며, 자동으로 모든 금융사를 인식하는 구조는 아닙니다.
 
-### 알림 해석 / 정규화 계층
-- 금융 앱/알림 형식 식별
-- 형식별 Parser로 거래 정보 추출
-- 현재 카카오뱅크에서 추출하는 값:
-  - 입금 / 출금
-  - 금액
-  - 상대방
-  - 계좌 끝 4자리
-  - 잔액
-  - 발생 시각
-  - 출처
-- 해석 실패 또는 불확실한 이벤트를 정상 거래로 강제 변환하지 않음
+## 3. Room 데이터 모델
 
-### 거래 정합성 계층 — 이후 구현
-- 동일 실제 거래의 다중 알림 중복 판별
-- 내부이체 후보 처리
-- 승인 취소/환불 원거래 매칭
-- 동일 이벤트 재처리 방지
-- 거래 상태 관리
+현재 DB 버전은 **6**이며 \`app/schemas/\`에 1~6 스키마가 포함되어 있습니다. 명시적 Migration으로 기존 데이터를 보존하도록 구현했습니다.
 
-### 규칙 처리 계층 — 이후 구현
-- 사용자 정의 소비 규칙 저장 및 평가
-- 거래 반영 후 활성 규칙 평가
-- 조건 충족 시 Feedback 생성
+| 테이블 | 책임 |
+| --- | --- |
+| \`raw_notifications\` | 알림 키·패키지·제목·본문·시각·처리 상태 보존 |
+| \`financial_transactions\` | 정규화 또는 수동 입력된 거래의 금액·유형·상대방·출처·시각 등 |
+| \`consistency_candidates\` | 거래 쌍의 중복·내부이체·환불 후보, 확정/거절/재검토 상태 |
+| \`user_rules\` | 사용자가 저장한 금액 또는 상대방 조건과 활성 상태 |
+| \`rule_matches\` | 규칙과 거래의 매치 결과·경고 메시지 |
 
-### UI 계층
-- 현재: 최신 구조화 거래를 Compose 카드 목록으로 표시
-- 이후:
-  - 거래 상세 / 상태 표시
-  - 카테고리별 지출 요약
-  - 사용자 규칙 관리
-  - 피드백 표시
-  - 잘못 처리된 거래 확인/수정
+Raw 상태: \`PENDING\`(저장 후 미완료), \`PROCESSED\`(거래 생성), \`PARSE_FAILED\`(해석 실패), \`IGNORED\`(의도적 제외).
 
-## 핵심 데이터
+거래를 수정·삭제해도 원본 알림은 별도로 보존합니다. 연결된 후보·규칙 결과는 거래 변경에 따라 무효화·재계산하거나 정리합니다.
 
-### RawNotification
+## 4. 정합성 검토와 월간 집계
 
-Android에서 수집한 원본 알림 이벤트.
+\`TransactionConsistencyEngine\`은 거래를 비교하여 다음 **후보**를 찾습니다.
 
-현재 주요 필드:
-- id
-- notificationKey
-- packageName
-- title
-- text
-- postedAt
-- receivedAt
-- processingStatus
+- **중복 후보:** 같은 유형·금액·출처·계좌·상대방, 2분 이내
+- **내부이체 후보:** 출금·입금 쌍, 같은 금액·서로 다른 계좌, 5분 이내
+- **환불 후보:** 동일 금액·계좌·상대방, 출금 뒤 입금, 14일 이내
 
-처리 상태:
-- `PENDING` — 아직 처리 완료되지 않음
-- `PROCESSED` — 구조화 거래 생성 완료
-- `PARSE_FAILED` — 현재 Parser로 해석하지 못함
+후보는 거래를 자동 삭제·합치거나 환불을 확정하지 않습니다. 사용자가 **확정 / 후보 아님**을 선택하며, 거래 편집 후 조건이 달라지면 재확인 상태가 될 수 있습니다.
 
-원본 단계에서는 같은 알림이 여러 번 들어와도 임의로 중복 제거하지 않는다.
+\`MonthlyTotals\`는 확정된 **중복 출금**과 **환불 입금**을 순지출에 반영합니다. 미확정 후보는 지출 계산을 변경하지 않으며, 내부이체 확정은 현재 집계 보정 대상이 아닙니다. 계산 기준은 [거래 검토 문서](TRANSACTION_REVIEW.md)를 참고하세요.
 
-### 구조화된 금융 거래
+## 5. 사용자 규칙
 
-현재 `financial_transactions`에 저장되는 거래 데이터.
+\`TransactionRuleEngine\`과 Room 저장소를 통해 다음 두 종류를 지원합니다.
 
-주요 필드:
-- rawNotificationId
-- transactionType
-- amount
-- counterparty
-- accountLast4
-- balance
-- source
-- occurredAt
-- createdAt
+1. **출금 금액 기준:** 한 건의 지출이 지정 금액 이상인 경우
+2. **상대방 키워드:** 거래 상대방 이름에 특정 문자열이 포함된 경우
 
-현재 이 데이터는 **정규화된 입력 결과**이며, 중복·내부이체·취소·환불 같은 거래 정합성 판단은 아직 적용하지 않는다.
+거래 저장 또는 수정 후 활성 규칙을 평가하여 \`rule_matches\`에 보관하고 Compose 화면에 경고를 표시합니다. 규칙 생성·활성화/비활성화·삭제가 가능합니다.
 
-### Rule
+**현재 미지원:** 기간별 합계, 카테고리, 거래 횟수, 외부 푸시/시스템 경고 알림.
 
-사용자 소비 관리 조건. 이후 구현한다.
+## 6. 화면과 권한
 
-예상 필드:
-- period
-- category
-- metric
-- operator
-- threshold
-- action
-- enabled
+- **홈:** 월간 지출 요약·주의 거래·최근 거래
+- **거래:** 월 선택, 필터, 상세, 추가·수정·삭제, 후보 검토
+- **규칙:** 금액·상대방 규칙 관리
+- **설정:** 알림 접근 권한 상태 확인 및 Android 설정 이동, 다크 모드, 데이터 관리
 
-### Feedback
+알림 접근 권한은 사용자가 Android 시스템 설정에서 직접 허용해야 합니다.
 
-규칙 충족 결과로 생성되는 사용자 피드백. 이후 구현한다.
+## 7. 테스트와 배포 경계
 
-## 설계 원칙
+- JUnit/Robolectric 테스트는 Parser·Repository·DB Migration·정합성·규칙·집계 로직을 검증합니다.
+- Android 계측/Compose 테스트는 테스트용 데이터를 사용해 화면 동작을 확인합니다. **실제 금융 앱 알림의 실기기 확인과는 별개**입니다.
+- GitHub Actions는 단위 테스트와 \`debug\`·\`externalDebug\` APK 빌드를 수행합니다. 스토어 출시용 서명·배포는 완료하지 않았습니다.
+- 원본 알림은 기기 내 Room에 저장하고 일반 로그에 민감한 본문을 출력하지 않도록 처리했습니다. **별도의 DB 암호화나 완전한 보안 감사를 완료했다는 뜻은 아닙니다.**
 
-1. **원본 우선 보존**
-   - 수집 직후 Room에 Raw Notification을 저장하고, 이후 처리 실패가 원본 손실로 이어지지 않도록 한다.
+## 8. 범위 밖 구성 및 한계
 
-2. **해석과 비즈니스 로직 분리**
-   - 금융 앱별 문자열 처리 코드는 거래 정합성/규칙 처리와 분리한다.
+\`backend/\`의 Spring Boot는 초기 전송 API 실험(PoC)이며 이 MVP에 연결되지 않습니다. 실패 Raw의 사용자용 조회·재처리, 모든 금융 알림 형식 지원, 출처 간 자동 중복 통합, 완전한 자동 환불 처리, 클라우드 동기화는 미구현 범위입니다.
 
-3. **정규화 이후 공통 처리**
-   - 금융 앱이 달라도 정규화 이후에는 같은 처리 흐름을 사용한다.
-
-4. **불확실한 데이터 강제 확정 금지**
-   - 해석 실패, 중복 여부, 원거래 매칭이 불확실한 경우 잘못 확정하는 것보다 확인 가능한 상태로 남기는 방향을 우선한다.
-
-5. **테스트 가능한 핵심 로직**
-   - Parser, 정합성 처리, 규칙 평가는 UI와 분리하고 자동 테스트 가능한 형태로 설계한다.
-
-6. **서버는 선택적 확장**
-   - 2026년 10월 MVP는 서버를 요구하지 않는다.
-   - Spring Boot 코드는 초기 통신 PoC로 보존하며, 향후 동기화·백업·웹 조회가 필요할 때 확장한다.
+[현재 로드맵](ROADMAP.md) · [MVP 요구사항](requirements.md) · [프로젝트 README](../README.md)
