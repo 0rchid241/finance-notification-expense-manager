@@ -1,5 +1,8 @@
 # 수동 거래 추가 및 시스템 뒤로가기 구현 보고서
 
+> **역사적 구현·검증 보고서(2026-10-12).** 아래 ‘커밋·push·PR 생성·merge는 수행하지 않았다’는 문장은 **이 보고서가 작성된 작업 세션 당시의 기록**입니다. 해당 기능은 이후 [PR #10](https://github.com/0rchid241/finance-notification-expense-manager/pull/10)으로 `main`에 병합되었습니다. 현재 MVP 전체 범위는 [README](../README.md)를 참고하세요.
+
+
 검증일: 2026-10-12. 작업 브랜치: `feature/9-ui-foundation`.
 작업 시작 전에 `git fetch origin`을 실행했고 로컬/원격 모두 `2859e4c`로 동일했다.
 작업 전 존재하던 미추적 스키마 `3.json`, `4.json`은 보존했다.
