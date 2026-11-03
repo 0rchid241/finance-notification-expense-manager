@@ -1,5 +1,8 @@
 # Firebase App Distribution 외부 테스트 설정
 
+> **2026-11-03 참고:** 현재 GitHub Actions는 `debug`(일반 앱)와 `externalDebug`(별도 `.dev` 앱) APK를 **모두 빌드하고 아티팩트로 업로드**합니다. Firebase App Distribution은 관련 Secrets가 실제로 설정된 경우에만 조건부로 실행되며, 이 문서는 **설정 방법**이지 Firebase 외부 배포를 실제 운영 중이라는 증거가 아닙니다. 일반 APK와 기존 설치본의 서명 키가 다르면 덮어쓰기 설치가 실패할 수 있으니 기존 앱 삭제에 주의하세요.
+
+
 외부에서 Android Studio 없이 Dev APK를 설치·업데이트하기 위한 설정이다.
 
 ## 목적
